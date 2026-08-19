@@ -8,22 +8,20 @@ The report runs as a scheduled **Cursor Automation**. Each run uses a fresh cont
 
 Paste this text into the Automation instructions field:
 
-> **Note:** The prompt below is intentionally left in Portuguese — it is operational copy-paste text used as-is in the automation environment.
-
 ```text
-Voce esta executando o job agendado de relatorio de vendas do sistema EVO.
+You are running the scheduled EVO sales report job.
 
-Passos, nesta ordem:
+Steps, in this order:
 
-1. Va para a raiz do repositorio deste job.
-2. Nao instale dependencias: o job usa apenas a biblioteca padrao do Python 3.
-3. Rode o orquestrador (ele processa todas as filiais e continua mesmo se
-   uma delas falhar):
+1. Go to the root of this job's repository.
+2. Do not install dependencies: the job uses only the Python 3 standard library.
+3. Run the orchestrator (it processes all branches and continues even if
+   one fails):
    python3 rodar_relatorios_filiais.py
-4. Nao edite evo_config.json, a menos que a execucao falhe por configuracao
-   ausente. Nunca invente credenciais, metas ou destinatarios.
-5. Responda com um status curto: quais filiais tiveram sucesso e quais
-   falharam (com o motivo).
+4. Do not edit evo_config.json unless the run fails due to missing
+   configuration. Never invent credentials, goals, or recipients.
+5. Reply with a short status: which branches succeeded and which
+   failed (with the reason).
 ```
 
 ## What the agent should run

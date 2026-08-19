@@ -11,25 +11,23 @@ The Claude agent opens the repository, runs the orchestrator, and responds with 
 
 This is the text exactly as it appears in the Claude project. When you change it there, update this copy too.
 
-> **Note:** The prompt below is intentionally left in Portuguese — it is operational copy-paste text used as-is in the Claude Desktop project.
-
 ```text
-Voce esta executando o job agendado de relatorio de vendas do sistema EVO.
-Passos, nesta ordem:
-1. Va para a raiz do repositorio deste job.
-2. Instale as dependencias antes de qualquer outra coisa:
+You are running the scheduled EVO sales report job.
+Steps, in this order:
+1. Go to the root of this job's repository.
+2. Install dependencies before anything else:
    python3 -m pip install -r requirements.txt
-   (em runner Windows, use: py -m pip install -r requirements.txt)
-3. Confirme que a dependencia de graficos carrega:
+   (on a Windows runner, use: py -m pip install -r requirements.txt)
+3. Confirm the chart dependency loads:
    python3 -c "import matplotlib; print(matplotlib.__version__)"
-   Se a instalacao falhar, PARE e relate o erro. Nao siga adiante.
-4. Rode o orquestrador (ele processa todas as filiais e continua mesmo se
-   uma delas falhar):
+   If installation fails, STOP and report the error. Do not continue.
+4. Run the orchestrator (it processes all branches and continues even if
+   one fails):
    python3 rodar_relatorios_filiais.py
-5. Nao edite evo_config.json, a menos que a execucao falhe por configuracao
-   ausente. Nunca invente credenciais, metas ou destinatarios.
-6. Responda com um status curto: quais filiais tiveram sucesso, quais
-   falharam (com o motivo) e qualquer erro de instalacao.
+5. Do not edit evo_config.json unless the run fails due to missing
+   configuration. Never invent credentials, goals, or recipients.
+6. Reply with a short status: which branches succeeded, which
+   failed (with the reason), and any installation errors.
 ```
 
 ## Exit codes
@@ -66,19 +64,19 @@ Steps 2 and 3 of the prompt do not match this repository:
 - `requirements.txt` **installs nothing** — it explicitly states the report uses only the Python 3 standard library.
 - `matplotlib` is not used anywhere in this project. Email charts are **inline SVG with HTML table fallback**, generated with no external dependency.
 
-Since `pip install` installs nothing, the step 3 `import matplotlib` only passes if the runner already has the package for another reason. On a clean environment it raises `ModuleNotFoundError`, and the prompt itself tells the agent to stop (`PARE e relate o erro. Nao siga adiante.`) — the report is never generated.
+Since `pip install` installs nothing, the step 3 `import matplotlib` only passes if the runner already has the package for another reason. On a clean environment it raises `ModuleNotFoundError`, and the prompt itself tells the agent to stop (`STOP and report the error. Do not continue.`) — the report is never generated.
 
 Likely leftover from an older version when charts were images rendered with `matplotlib`.
 
 If the target is this repository, steps 2 and 3 can be replaced with a dependency-free smoke test:
 
 ```text
-2. Nao instale dependencias: o job usa apenas a biblioteca padrao do
-   Python 3. Se algum passo pedir um pacote externo, PARE e relate o erro.
-3. Confirme que o modulo principal carrega:
+2. Do not install dependencies: the job uses only the Python 3
+   standard library. If any step asks for an external package, STOP and report the error.
+3. Confirm the main module loads:
    python3 -c "import gerar_relatorio_vendas"
-   (em runner Windows, use: py -c "import gerar_relatorio_vendas")
-   Se falhar, PARE e relate o erro. Nao siga adiante.
+   (on a Windows runner, use: py -c "import gerar_relatorio_vendas")
+   If it fails, STOP and report the error. Do not continue.
 ```
 
 `requirements-dev.txt` (Playwright) exists only for local chart validation and should not be installed by the scheduled task.

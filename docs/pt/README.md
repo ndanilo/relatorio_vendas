@@ -79,3 +79,5 @@ py scripts/validar_graficos_email.py
 | `relatorios/` | Saídas `.txt` e `.csv` |
 
 **Atenção:** `evo_config.json` contém senha em texto puro e não é versionado. Use `evo_config.example.json` como modelo.
+
+Diretrizes de tradução: [TRANSLATIONS.md](../TRANSLATIONS.md)

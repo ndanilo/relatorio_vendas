@@ -79,3 +79,5 @@ py scripts/validar_graficos_email.py
 | `relatorios/` | `.txt` and `.csv` outputs |
 
 **Warning:** `evo_config.json` contains a password in plain text and is not versioned. Use `evo_config.example.json` as a template.
+
+Translation guidelines: [TRANSLATIONS.md](../TRANSLATIONS.md)
