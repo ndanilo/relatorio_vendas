@@ -1,0 +1,6 @@
+# Dependencias apenas de desenvolvimento/validacao.
+# Nao sao necessarias para gerar ou enviar o relatorio.
+#
+# Depois de instalar, baixe o navegador uma vez:
+#   py -m playwright install chromium
+playwright>=1.44

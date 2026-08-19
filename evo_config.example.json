@@ -1,0 +1,55 @@
+{
+  "_aviso": "Copie este arquivo para evo_config.json e preencha com valores reais. O evo_config.json nunca e versionado.",
+
+  "dns": "minha-academia",
+  "login": "usuario@exemplo.com.br",
+  "senha": "SUA_SENHA_EVO",
+
+  "_aviso_meta": "Opcional: adicione meta_mes dentro de uma filial para exibir o progresso da meta no e-mail.",
+
+  "filiais": [
+    {
+      "id_filial": 1,
+      "meta_mes": 500000,
+      "nome": "Unidade Centro",
+      "colaboradores": [
+        {"id_funcionario": 101, "nome": "Colaborador A"},
+        {"id_funcionario": 102, "nome": "Colaborador B"},
+        {"id_funcionario": 103, "nome": "Colaborador C"}
+      ]
+    },
+    {
+      "id_filial": 2,
+      "meta_mes": 300000,
+      "nome": "Unidade Zona Sul",
+      "colaboradores": [
+        {"id_funcionario": 201, "nome": "Colaborador D"},
+        {"id_funcionario": 202, "nome": "Colaborador E"}
+      ]
+    }
+  ],
+  "email": {
+    "ativo": false,
+    "_aviso": "destinatario = Para quem vai o relatorio. cc = copia (opcional). Login/SMTP sao globais para todas as filiais.",
+    "remetente": "remetente@exemplo.com",
+    "destinatario": "usuario@exemplo.com.br",
+    "cc": "copia@exemplo.com",
+    "smtp_servidor": "smtp-relay.brevo.com",
+    "smtp_porta": 587,
+    "smtp_usuario": "seu-usuario@smtp-brevo.com",
+    "smtp_senha_app": "SUA_SENHA_SMTP_BREVO"
+  },
+
+  "sms": {
+    "ativo": false,
+    "_aviso": "Um SMS por numero em destinatarios, ao final do lote. api_key = chave Brevo (xkeysib-...).",
+    "api_key": "xkeysib-SUA_CHAVE_BREVO",
+    "sender": "Relatorios",
+    "destinatarios": [
+      "5511999999999",
+      "5511988888888"
+    ],
+    "type": "transactional",
+    "unicode_enabled": true
+  }
+}

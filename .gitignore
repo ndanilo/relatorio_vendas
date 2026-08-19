@@ -1,0 +1,74 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging / installers
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# Test / coverage / type checkers
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+
+# Environment and local overrides
+.env
+.env.*
+*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# Generated sales reports (kept locally; recreated by the scripts)
+relatorios/
+
+# Claude / agent local notes and captures
+memory/
+
+# Real credentials (EVO + SMTP + Brevo). Use evo_config.example.json as template.
+evo_config.json
+
+# Browser network captures - contain auth tokens
+*.har
+
+# Debug pages dumped on token extraction failure
+debug_*.html
+
+# Output of scripts/validar_graficos_email.py
+test_email_*.html
+
+# Other ad-hoc test images saved next to the scripts
+test_*.png
+test_*.jpg
+test_*.jpeg
+test_*.webp
+*_test.png
+*_test.jpg
+*_test.jpeg
+*_test.webp

@@ -1,0 +1,5 @@
+# Dependencias do relatorio de vendas EVO: nenhuma.
+# O acesso ao EVO, o envio de e-mail e os graficos (SVG inline + tabelas HTML)
+# usam apenas a biblioteca padrao do Python 3.
+#
+# Para rodar a validacao dos graficos com Playwright, use requirements-dev.txt.
