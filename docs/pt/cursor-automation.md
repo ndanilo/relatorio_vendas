@@ -1,3 +1,5 @@
+**Leia em outros idiomas:** [English](../en/cursor-automation.md) | **Português (Brasil)**
+
 # Execução agendada (Cursor Automation)
 
 O relatório roda como uma **Cursor Automation** agendada. Cada execução usa um container novo, mas o job não tem dependências externas: os gráficos do e-mail são SVG inline + tabelas HTML, gerados só com a biblioteca padrão.

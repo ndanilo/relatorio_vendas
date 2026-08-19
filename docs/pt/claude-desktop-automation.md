@@ -1,3 +1,5 @@
+**Leia em outros idiomas:** [English](../en/claude-desktop-automation.md) | **Português (Brasil)**
+
 # Execução agendada (Claude Desktop)
 
 > **Este prompt não é executado por nada neste repositório.**

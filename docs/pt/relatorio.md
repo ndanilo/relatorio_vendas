@@ -1,3 +1,5 @@
+**Leia em outros idiomas:** [English](../en/report.md) | **Português (Brasil)**
+
 # Formato do relatório
 
 O script gera **um relatório por filial** em três formatos: e-mail HTML, `.txt` e `.csv`.
@@ -32,7 +34,7 @@ Se o cliente remove ou ignora SVG (Gmail, Outlook/Word), o donut some e restam o
 
 ### Validação dos gráficos
 
-[`scripts/validar_graficos_email.py`](../scripts/validar_graficos_email.py) renderiza o e-mail no Chromium via Playwright e confere, em quatro cenários fixos, se SVG e HTML representam os mesmos números — inclusive removendo os `<svg>` da página para simular o Gmail.
+[`scripts/validar_graficos_email.py`](../../scripts/validar_graficos_email.py) renderiza o e-mail no Chromium via Playwright e confere, em quatro cenários fixos, se SVG e HTML representam os mesmos números — inclusive removendo os `<svg>` da página para simular o Gmail.
 
 ```powershell
 py -m pip install -r requirements-dev.txt

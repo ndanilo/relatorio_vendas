@@ -1,3 +1,5 @@
+**Leia em outros idiomas:** [English](../en/configuration.md) | **Português (Brasil)**
+
 # Configuração
 
 Todo o comportamento configurável fica em `evo_config.json` (mesma pasta do script).

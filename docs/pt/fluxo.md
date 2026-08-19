@@ -1,3 +1,5 @@
+**Leia em outros idiomas:** [English](../en/flow.md) | **Português (Brasil)**
+
 # Fluxo de acesso
 
 ## Acesso humano (navegador)

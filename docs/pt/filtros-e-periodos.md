@@ -1,3 +1,5 @@
+**Leia em outros idiomas:** [English](../en/filters-and-periods.md) | **Português (Brasil)**
+
 # Filtros e períodos
 
 Endpoint: `POST https://evo3.w12app.com.br/Gerencial/Vendas/listarVendas`
