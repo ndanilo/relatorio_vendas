@@ -74,6 +74,12 @@ O script não usa Playwright. Ele reproduz o fluxo HTTP do navegador com a bibli
                                     └────────┬─────────┘
                                              ▼
                                     relatorio .txt / .csv (+ e-mail)
+                                             │
+                                             ▼
+                                    ┌──────────────────┐
+                                    │ API local        │
+                                    │ /notifications   │  (WhatsApp: texto + PNG)
+                                    └──────────────────┘
 ```
 
 ### Passo 1 — Login na API nova
@@ -128,6 +134,20 @@ Para cada colaborador da filial, o script chama a API **duas vezes**:
 
 Detalhes dos filtros e das datas: [filtros-e-periodos.md](filtros-e-periodos.md).
 
+### Passo 4 — Notificar por WhatsApp (por filial + resumo)
+
+Depois do e-mail de cada filial, o script renderiza o relatório em PNG (Chromium via Playwright, mesmo HTML do e-mail sem o donut) e chama a API local de notificações:
+
+| Item | Valor |
+|------|--------|
+| URL | `whatsapp.url` (ex.: `http://127.0.0.1:3001/notifications`) |
+| Método | `POST` |
+| Content-Type | `multipart/form-data` |
+| Autenticação | Header `x-api-key` |
+| Campos | `to` (JID), `message` (texto), `file` (PNG, opcional) |
+
+Ao final do lote sai uma última mensagem, só texto, com o balanço das filiais. O Playwright é opcional: sem ele a mensagem vai sem anexo. Configuração em [configuracao.md](configuracao.md).
+
 ---
 
 ## URLs usadas (resumo)
@@ -139,6 +159,7 @@ Detalhes dos filtros e das datas: [filtros-e-periodos.md](filtros-e-periodos.md)
 | Login API | `https://evo-abc-api.w12app.com.br/api/v1/auth/login` |
 | Bridge evo3 | `https://evo3.w12app.com.br/Login/LogarEvo3` |
 | Listar vendas | `https://evo3.w12app.com.br/Gerencial/Vendas/listarVendas` |
+| Notificação WhatsApp | `whatsapp.url` do `evo_config.json` (API local) |
 
 Endpoints auxiliares vistos no navegador (o script **não** chama):
 

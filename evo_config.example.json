@@ -42,7 +42,7 @@
 
   "sms": {
     "ativo": false,
-    "_aviso": "Um SMS por numero em destinatarios, ao final do lote. api_key = chave Brevo (xkeysib-...).",
+    "_aviso": "Substituido pelo WhatsApp; mantido desligado. Um SMS por numero em destinatarios, ao final do lote. api_key = chave Brevo (xkeysib-...).",
     "api_key": "xkeysib-SUA_CHAVE_BREVO",
     "sender": "Relatorios",
     "destinatarios": [
@@ -51,5 +51,20 @@
     ],
     "type": "transactional",
     "unicode_enabled": true
+  },
+
+  "whatsapp": {
+    "ativo": false,
+    "_aviso": "Notificacao via API local. Uma mensagem POR FILIAL (com o relatorio em PNG anexo) e um resumo final so texto. destinatarios = JID do WhatsApp: grupo termina em @g.us, contato em @c.us.",
+    "url": "http://127.0.0.1:3001/notifications",
+    "api_key": "SUA_CHAVE_DA_API_LOCAL",
+    "destinatarios": [
+      "5511999999999@c.us",
+      "5511999999999-1234567890@g.us"
+    ],
+    "anexar_imagem": true,
+    "imagem_largura": 640,
+    "imagem_escala": 2,
+    "timeout": 60
   }
 }

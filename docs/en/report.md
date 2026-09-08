@@ -2,7 +2,7 @@
 
 # Report format
 
-The script generates **one report per branch** in three formats: HTML email, `.txt`, and `.csv`.
+The script generates **one report per branch** in four formats: HTML email, `.txt`, `.csv`, and a PNG for WhatsApp.
 
 ## Email (responsive HTML)
 
@@ -52,12 +52,30 @@ Failed scenarios are retried (default: 3 attempts). Screenshots go to `test_graf
 - SVG uses `width:100%` with `viewBox`, so it never overflows the screen  
 - No information depends on charts: values and percentages are also in text  
 
+## WhatsApp image (PNG)
+
+WhatsApp does not render HTML, so the notification carries the report as an image. The PNG is the **same email HTML**, produced by `montar_email_html(..., incluir_donut=False)` and screenshotted in Chromium — there is no second layout builder, so the image can never drift from the email.
+
+The only difference is the donut, which is dropped. It is drawn with no labels at all (see above), which works inside the email where the HTML ranking sits right below it, but not alone in an image. Everything else stays: header, cards, goal, month total, ranking, and yesterday's detail.
+
+| Item | Value |
+|------|-------|
+| File | `relatorios/whatsapp_{slug-da-filial}_YYYY-MM-DD.png` |
+| Width | `whatsapp.imagem_largura` CSS px (default 640) |
+| Density | `whatsapp.imagem_escala` (default 2, i.e. 1280 real px) |
+| Typical size | 170-380 KB, height between 1300 and 2200 CSS px |
+
+On a busy day the image exceeds a 1:3 ratio. The chat preview is cropped, but the full image opens normally on tap. If text looks blurry on your phone, raise `imagem_escala`.
+
+Rendering requires Playwright, which is **optional**: without it the message goes out as text only and the job continues.
+
 ## Generated files
 
 Outputs in `relatorios/`:
 
 - `relatorio_vendas_{slug-da-filial}_YYYY-MM-DD.txt`
 - `relatorio_vendas_{slug-da-filial}_YYYY-MM-DD.csv`
+- `whatsapp_{slug-da-filial}_YYYY-MM-DD.png` (only when WhatsApp is active)
 
 Example: `relatorio_vendas_unidade-centro_2026-07-31.txt`
 

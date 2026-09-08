@@ -45,12 +45,23 @@ Login, DNS e e-mail são **globais**. Filiais e colaboradores ficam em `filiais`
   },
 
   "sms": {
-    "ativo": true,
+    "ativo": false,
     "api_key": "xkeysib-...",
     "sender": "Relatorios",
     "destinatarios": ["5511999999999"],
     "type": "transactional",
     "unicode_enabled": false
+  },
+
+  "whatsapp": {
+    "ativo": true,
+    "url": "http://127.0.0.1:3001/notifications",
+    "api_key": "...",
+    "destinatarios": ["5511999999999@c.us"],
+    "anexar_imagem": true,
+    "imagem_largura": 640,
+    "imagem_escala": 2,
+    "timeout": 60
   }
 }
 ```
@@ -62,7 +73,8 @@ Login, DNS e e-mail são **globais**. Filiais e colaboradores ficam em `filiais`
 | `dns` | Tenant no EVO (ex.: `minha-academia`) |
 | `login` / `senha` | Credenciais do perfil (iguais para todas as filiais) |
 | `email` | Remetente, destinatário, CC e SMTP (iguais para todas as filiais) |
-| `sms` | Notificação Brevo após o e-mail da filial (opcional) |
+| `whatsapp` | Notificação via API local: uma por filial (com imagem) + resumo final |
+| `sms` | Notificação Brevo. Substituída pelo WhatsApp; mantida desligada |
 
 ## Filiais
 
@@ -113,7 +125,48 @@ Assunto dinâmico:
 Relatório de Vendas - {nome da filial} - {data de ontem}
 ```
 
-## SMS (Brevo)
+## WhatsApp (API local)
+
+O canal principal de notificação. São duas mensagens de tipos diferentes:
+
+| Momento | Conteúdo |
+|---------|----------|
+| Uma **por filial**, logo depois do e-mail | Texto com os números da filial + o relatório em PNG anexo |
+| Um **resumo** ao final do lote | Só texto: quais filiais foram processadas e o que falhou |
+
+O PNG é o mesmo relatório do e-mail renderizado no Chromium, **sem o gráfico circular** — o donut não tem rótulos (para não quebrar em clientes de e-mail) e ficaria ilegível sozinho fora do HTML. Todo o resto entra: cabeçalho, KPIs, meta, contribuição e o detalhe de ontem.
+
+| Campo | Descrição |
+|-------|-----------|
+| `ativo` | `true` envia as notificações; `false` desliga o canal |
+| `url` | Endpoint da API local (ex.: `http://127.0.0.1:3001/notifications`) |
+| `api_key` | Enviada no header `x-api-key` |
+| `destinatarios` | Lista de JIDs. Contato termina em `@c.us`, grupo em `@g.us` |
+| `anexar_imagem` | `false` manda só o texto, sem renderizar o PNG |
+| `imagem_largura` | Largura da renderização em CSS px (padrão `640`) |
+| `imagem_escala` | Fator de densidade. `2` gera o dobro de pixels, texto mais nítido |
+| `timeout` | Segundos de espera pela API (padrão `60`) |
+
+Requisição gerada (`multipart/form-data`, campos `to`, `message` e `file`):
+
+```
+POST /notifications
+x-api-key: ...
+Content-Type: multipart/form-data; boundary=----relatorioVendas...
+```
+
+O Playwright é **opcional**: sem ele, ou se a renderização falhar, a mensagem sai só com o texto e o job continua. Instale com `py -m pip install playwright && py -m playwright install chromium`.
+
+Para ver as mensagens e as imagens sem enviar nada, use `--dry-run`:
+
+```powershell
+py rodar_relatorios_filiais.py --dry-run
+py gerar_relatorio_vendas.py --id-filial 1 --dry-run
+```
+
+## SMS (Brevo) — desligado
+
+Substituído pelo WhatsApp. O código continua no projeto e volta a funcionar ao trocar `sms.ativo` para `true`.
 
 Um SMS **por número** em `destinatarios`, ao final do lote (não um por filial).  
 Com `rodar_relatorios_filiais.py`, a notificação sai depois que as filiais terminam.  
@@ -139,4 +192,4 @@ Relatorio(s) de Vendas - Minha-academia - DD/MM/AAAA enviado por e-mail. Confira
 
 ## Segurança
 
-O arquivo guarda senha, credenciais SMTP e chave da API Brevo em texto puro. Mantenha-o privado — copie a partir de `evo_config.example.json` e nunca o publique.
+O arquivo guarda senha, credenciais SMTP, chave da API Brevo e chave da API local de WhatsApp em texto puro. Mantenha-o privado — copie a partir de `evo_config.example.json` e nunca o publique.

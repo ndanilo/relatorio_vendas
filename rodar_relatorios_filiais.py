@@ -9,8 +9,10 @@ registrado e a execucao segue para a proxima.
 
 Uso:
     python3 rodar_relatorios_filiais.py
+    python3 rodar_relatorios_filiais.py --dry-run
 """
 
+import argparse
 import json
 import subprocess
 import sys
@@ -29,7 +31,12 @@ from gerar_relatorio_vendas import (  # noqa: E402
     EvoError,
     calcular_periodos,
     carregar_config,
+    configurar_saida_utf8,
     notificar_sms_resumo,
+)
+from notificacao_whatsapp import (  # noqa: E402
+    WhatsAppError,
+    notificar_whatsapp_resumo,
 )
 
 
@@ -87,7 +94,7 @@ def carregar_filiais():
     return validadas
 
 
-def rodar_filial(filial):
+def rodar_filial(filial, dry_run=False):
     id_filial = filial["id_filial"]
     nome = filial["nome"]
     qtd = len(filial["colaboradores"])
@@ -100,13 +107,30 @@ def rodar_filial(filial):
         str(RELATORIO_SCRIPT),
         "--id-filial",
         str(id_filial),
-        "--sem-sms",
+        "--sem-resumo",
     ]
+    if dry_run:
+        cmd.append("--dry-run")
     resultado = subprocess.run(cmd, cwd=str(SCRIPT_DIR))
     return resultado.returncode
 
 
-def main():
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Roda o relatorio de vendas EVO para todas as filiais."
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Gera arquivos e imagens e mostra as mensagens, mas nao envia "
+        "e-mail, SMS nem faz chamadas de API.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    configurar_saida_utf8()
+    args = parse_args(argv)
     filiais = carregar_filiais()
     if not filiais:
         sys.exit("Nenhuma filial valida para processar.")
@@ -118,7 +142,7 @@ def main():
 
     for filial in filiais:
         try:
-            codigo = rodar_filial(filial)
+            codigo = rodar_filial(filial, dry_run=args.dry_run)
             if codigo == 0:
                 ok.append(filial)
                 print(f'[OK] Filial "{filial["nome"]}" concluida.\n')
@@ -146,18 +170,28 @@ def main():
         for filial, motivo in falhas:
             print(f'  - {filial["nome"]} (id={filial["id_filial"]}): {motivo}')
 
-    # Um SMS por destinatario apos o lote (nao um por filial)
+    # Uma notificacao de resumo por destinatario apos o lote (nao uma por
+    # filial). As mensagens por filial ja sairam dentro de cada subprocesso.
     if ok:
         try:
             config = carregar_config()
             email_ativo = bool((config.get("email") or {}).get("ativo"))
-            if email_ativo:
-                ontem_str = calcular_periodos(datetime.now())["ontem_str"]
+            ontem_str = calcular_periodos(datetime.now())["ontem_str"]
+            if email_ativo and not args.dry_run:
                 print("\nEnviando SMS de resumo...")
                 notificar_sms_resumo(config, ontem_str)
-        except EvoError as exc:
-            print(f"[ERRO] Falha ao enviar SMS de resumo: {exc}")
-            falhas.append(({"nome": "SMS", "id_filial": "-"}, str(exc)))
+            print("\nEnviando resumo por WhatsApp...")
+            notificar_whatsapp_resumo(
+                config,
+                ontem_str,
+                [filial["nome"] for filial in ok],
+                falhas=[(filial["nome"], motivo) for filial, motivo in falhas],
+                email_enviado=email_ativo,
+                dry_run=args.dry_run,
+            )
+        except (EvoError, WhatsAppError) as exc:
+            print(f"[ERRO] Falha ao enviar o resumo do lote: {exc}")
+            falhas.append(({"nome": "Resumo", "id_filial": "-"}, str(exc)))
 
     if falhas:
         sys.exit(1)

@@ -74,6 +74,12 @@ The script does not use Playwright. It reproduces the browser HTTP flow with the
                                     └────────┬─────────┘
                                              ▼
                                     relatorio .txt / .csv (+ e-mail)
+                                             │
+                                             ▼
+                                    ┌──────────────────┐
+                                    │ local API        │
+                                    │ /notifications   │  (WhatsApp: text + PNG)
+                                    └──────────────────┘
 ```
 
 ### Step 1 — Login on the new API
@@ -128,6 +134,20 @@ For each employee in the branch, the script calls the API **twice**:
 
 Filter and date details: [filters-and-periods.md](filters-and-periods.md).
 
+### Step 4 — Notify on WhatsApp (per branch + summary)
+
+After each branch email, the script renders the report as a PNG (Chromium via Playwright, same email HTML without the donut) and calls the local notification API:
+
+| Item | Value |
+|------|--------|
+| URL | `whatsapp.url` (e.g. `http://127.0.0.1:3001/notifications`) |
+| Method | `POST` |
+| Content-Type | `multipart/form-data` |
+| Auth | `x-api-key` header |
+| Fields | `to` (JID), `message` (text), `file` (PNG, optional) |
+
+At the end of the batch a final text-only message goes out with the branch tally. Playwright is optional: without it the message goes without the attachment. Configuration in [configuration.md](configuration.md).
+
 ---
 
 ## URLs used (summary)
@@ -139,6 +159,7 @@ Filter and date details: [filters-and-periods.md](filters-and-periods.md).
 | API login | `https://evo-abc-api.w12app.com.br/api/v1/auth/login` |
 | evo3 bridge | `https://evo3.w12app.com.br/Login/LogarEvo3` |
 | List sales | `https://evo3.w12app.com.br/Gerencial/Vendas/listarVendas` |
+| WhatsApp notification | `whatsapp.url` from `evo_config.json` (local API) |
 
 Auxiliary endpoints seen in the browser (the script **does not** call them):
 

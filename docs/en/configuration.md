@@ -45,12 +45,23 @@ Login, DNS, and email are **global**. Branches and employees live under `filiais
   },
 
   "sms": {
-    "ativo": true,
+    "ativo": false,
     "api_key": "xkeysib-...",
     "sender": "Relatorios",
     "destinatarios": ["5511999999999"],
     "type": "transactional",
     "unicode_enabled": false
+  },
+
+  "whatsapp": {
+    "ativo": true,
+    "url": "http://127.0.0.1:3001/notifications",
+    "api_key": "...",
+    "destinatarios": ["5511999999999@c.us"],
+    "anexar_imagem": true,
+    "imagem_largura": 640,
+    "imagem_escala": 2,
+    "timeout": 60
   }
 }
 ```
@@ -62,7 +73,8 @@ Login, DNS, and email are **global**. Branches and employees live under `filiais
 | `dns` | EVO tenant (e.g. `minha-academia`) |
 | `login` / `senha` | Profile credentials (same for all branches) |
 | `email` | Sender, recipient, CC, and SMTP (same for all branches) |
-| `sms` | Brevo notification after branch email (optional) |
+| `whatsapp` | Local API notification: one per branch (with image) + final summary |
+| `sms` | Brevo notification. Replaced by WhatsApp; kept disabled |
 
 ## Branches
 
@@ -113,7 +125,48 @@ Dynamic subject:
 Relatório de Vendas - {nome da filial} - {data de ontem}
 ```
 
-## SMS (Brevo)
+## WhatsApp (local API)
+
+The primary notification channel. Two different kinds of message:
+
+| When | Content |
+|------|---------|
+| One **per branch**, right after the email | Text with that branch's numbers + the report attached as PNG |
+| One **summary** at the end of the batch | Text only: which branches were processed and what failed |
+
+The PNG is the same email report rendered in Chromium, **without the donut chart** — the donut carries no labels (so it does not break in email clients) and would be unreadable on its own outside the HTML. Everything else is included: header, KPIs, goal, contribution, and yesterday's detail.
+
+| Field | Description |
+|-------|-------------|
+| `ativo` | `true` sends the notifications; `false` disables the channel |
+| `url` | Local API endpoint (e.g. `http://127.0.0.1:3001/notifications`) |
+| `api_key` | Sent in the `x-api-key` header |
+| `destinatarios` | List of JIDs. Contacts end in `@c.us`, groups in `@g.us` |
+| `anexar_imagem` | `false` sends text only, skipping the PNG render |
+| `imagem_largura` | Render width in CSS px (default `640`) |
+| `imagem_escala` | Density factor. `2` doubles the pixels for sharper text |
+| `timeout` | Seconds to wait for the API (default `60`) |
+
+Generated request (`multipart/form-data`, fields `to`, `message`, and `file`):
+
+```
+POST /notifications
+x-api-key: ...
+Content-Type: multipart/form-data; boundary=----relatorioVendas...
+```
+
+Playwright is **optional**: without it, or if rendering fails, the message goes out as text only and the job continues. Install with `py -m pip install playwright && py -m playwright install chromium`.
+
+To preview messages and images without sending anything, use `--dry-run`:
+
+```powershell
+py rodar_relatorios_filiais.py --dry-run
+py gerar_relatorio_vendas.py --id-filial 1 --dry-run
+```
+
+## SMS (Brevo) — disabled
+
+Replaced by WhatsApp. The code stays in the project and works again by flipping `sms.ativo` to `true`.
 
 One SMS **per number** in `destinatarios`, at the end of the batch (not one per branch).  
 With `rodar_relatorios_filiais.py`, the notification is sent after branches finish.  
@@ -139,4 +192,4 @@ Relatorio(s) de Vendas - Minha-academia - DD/MM/AAAA enviado por e-mail. Confira
 
 ## Security
 
-The file stores password, SMTP credentials, and Brevo API key in plain text. Keep it private — copy from `evo_config.example.json` and never publish it.
+The file stores password, SMTP credentials, the Brevo API key, and the local WhatsApp API key in plain text. Keep it private — copy from `evo_config.example.json` and never publish it.

@@ -2,7 +2,7 @@
 
 # Relatório de Vendas — EVO
 
-Automação em Python que gera o relatório de vendas por colaborador no sistema EVO (W12), por filial, e envia o resultado por e-mail HTML com gráficos. Pode rodar manualmente ou em **tarefa agendada** (ver [docs/pt/claude-desktop-automation.md](docs/pt/claude-desktop-automation.md) e [docs/pt/cursor-automation.md](docs/pt/cursor-automation.md)).
+Automação em Python que gera o relatório de vendas por colaborador no sistema EVO (W12), por filial, e envia o resultado por e-mail HTML com gráficos e por WhatsApp com o relatório em imagem. Pode rodar manualmente ou em **tarefa agendada** (ver [docs/pt/claude-desktop-automation.md](docs/pt/claude-desktop-automation.md) e [docs/pt/cursor-automation.md](docs/pt/cursor-automation.md)).
 
 ## O que faz
 
@@ -11,23 +11,27 @@ Automação em Python que gera o relatório de vendas por colaborador no sistema
 3. Busca vendas de **ontem** e do **mês até ontem** para os colaboradores da filial.
 4. Gera um `.txt` e um `.csv` por filial em `relatorios/`.
 5. Envia um e-mail HTML responsivo por filial (gráficos de contribuição e meta), se `email.ativo` estiver `true`.
-6. Ao final do lote, se houve e-mail e `sms.ativo` estiver `true`, envia um SMS de resumo por número em `sms.destinatarios` (API Brevo).
+6. Notifica cada filial por WhatsApp (API local), anexando o mesmo relatório renderizado em PNG sem o gráfico circular, se `whatsapp.ativo` estiver `true`.
+7. Ao final do lote, envia um resumo por WhatsApp só com texto. O SMS (Brevo) foi substituído por esse canal e está desligado.
 
-Textos e barras usam **HTML puro**; o donut de contribuição é **SVG só com formas** (sem texto, para não quebrar em clientes de e-mail). Não há anexo de imagem.
+Textos e barras usam **HTML puro**; o donut de contribuição é **SVG só com formas** (sem texto, para não quebrar em clientes de e-mail). O e-mail não leva anexo de imagem — o PNG existe só para o WhatsApp, que não renderiza HTML.
 
 ## Requisitos
 
 - Python 3.9+
-- Nenhuma dependência externa (apenas a biblioteca padrão)
+- Nenhuma dependência obrigatória (apenas a biblioteca padrão)
+- Playwright **opcional**, só para anexar a imagem no WhatsApp
 
 ## Instalação
 
-Não é preciso instalar nada para rodar o relatório. Para validar os gráficos localmente (ver abaixo):
+Para rodar o relatório e enviar e-mail não é preciso instalar nada. Para anexar a imagem no WhatsApp (e para validar os gráficos, ver abaixo):
 
 ```powershell
-py -m pip install -r requirements-dev.txt
+py -m pip install -r requirements.txt
 py -m playwright install chromium
 ```
+
+Sem o Playwright a mensagem do WhatsApp sai só com o texto e o job continua.
 
 ## Configuração
 
@@ -44,7 +48,8 @@ Edite `evo_config.json` na raiz do projeto (mesma pasta dos scripts). Esse arqui
 | `dns`, `login`, `senha` | Credenciais globais do EVO |
 | `filiais` | Lista de filiais (`id_filial`, `nome`, `colaboradores`, `meta_mes` opcional) |
 | `email` | Remetente, destinatário, CC e SMTP |
-| `sms` | API Brevo + lista de celulares (aviso após o e-mail) |
+| `whatsapp` | API local + lista de JIDs (uma mensagem por filial + resumo) |
+| `sms` | API Brevo + lista de celulares. Substituído pelo WhatsApp, desligado |
 
 **Atenção:** `evo_config.json` contém senha e credenciais SMTP em texto puro. Não compartilhe nem publique esse arquivo. Detalhes em [docs/pt/configuracao.md](docs/pt/configuracao.md).
 
@@ -68,6 +73,13 @@ Apenas uma filial:
 py gerar_relatorio_vendas.py --id-filial 1
 ```
 
+Ensaio geral, sem disparar nada: gera arquivos e imagens e mostra as mensagens do WhatsApp, mas não envia e-mail, SMS nem chama a API.
+
+```powershell
+py rodar_relatorios_filiais.py --dry-run
+py gerar_relatorio_vendas.py --id-filial 1 --dry-run
+```
+
 ## Validar os gráficos do e-mail
 
 Renderiza o e-mail no Chromium (Playwright) e confere se o SVG e o fallback HTML mostram os mesmos números, inclusive simulando um cliente que remove SVG:
@@ -85,12 +97,13 @@ Gera screenshots `test_grafico_*.png` (com e sem SVG) para conferência visual. 
 | `rodar_relatorios_filiais.py` | Orquestra uma chamada por filial (continua se houver erro) |
 | `gerar_relatorio_vendas.py` | Login, API, arquivos e envio de e-mail |
 | `email_relatorio.py` | HTML responsivo, SVG inline e fallback em tabelas |
+| `notificacao_whatsapp.py` | Mensagens do WhatsApp, render do PNG e chamada da API local |
 | `scripts/validar_graficos_email.py` | Validação dos gráficos com Playwright |
 | `evo_config.example.json` | Modelo de configuração (copie para `evo_config.json`) |
 | `evo_config.json` | Credenciais reais — local, não versionado |
-| `requirements.txt` | Sem dependências (biblioteca padrão) |
+| `requirements.txt` | Playwright (opcional, só para a imagem do WhatsApp) |
 | `requirements-dev.txt` | Playwright, só para a validação |
-| `relatorios/` | Saídas `.txt` e `.csv` |
+| `relatorios/` | Saídas `.txt`, `.csv` e os PNG do WhatsApp |
 
 ## Documentação
 

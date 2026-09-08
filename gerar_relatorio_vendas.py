@@ -26,12 +26,14 @@ Como funciona (resumo tecnico):
        idFilial, extrai o antiforgerytoken e consulta listarVendas.
     3) Monta um relatorio .txt/.csv por filial e envia por e-mail em HTML
        responsivo (graficos SVG inline + tabelas) e texto puro como
-       alternativa. O assunto inclui o nome da filial. Ao final do lote,
-       se houve e-mail enviado e sms.ativo estiver true, envia um SMS
-       de resumo por numero em sms.destinatarios (API Brevo).
+       alternativa. O assunto inclui o nome da filial.
+    4) Notifica cada filial por WhatsApp (API local), anexando o mesmo
+       relatorio renderizado em PNG sem o grafico circular. Ao final do
+       lote sai um resumo unico, so texto.
 
-Nao ha anexos de imagem: os graficos vao dentro do proprio HTML, entao
-aparecem mesmo quando o cliente bloqueia imagens externas ou anexos.
+O e-mail nao leva anexo de imagem: os graficos vao dentro do proprio HTML,
+entao aparecem mesmo quando o cliente bloqueia imagens externas. O PNG
+existe so para o WhatsApp, que nao renderiza HTML.
 """
 
 import argparse
@@ -48,6 +50,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from email_relatorio import montar_email_html
+from notificacao_whatsapp import (
+    WhatsAppError,
+    gerar_imagem_relatorio,
+    notificar_whatsapp_filial,
+    notificar_whatsapp_resumo,
+    whatsapp_ativo,
+)
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = SCRIPT_DIR / "evo_config.json"
@@ -598,7 +607,16 @@ def enviar_sms_brevo(config, conteudo):
             raise EvoError(f"Falha de rede ao enviar SMS para {telefone}: {exc}") from exc
 
 
-def processar_filial(cliente, token_evo3, filial, periodos, agora, config):
+def processar_filial(
+    cliente,
+    token_evo3,
+    filial,
+    periodos,
+    agora,
+    config,
+    dry_run=False,
+    sem_whatsapp=False,
+):
     id_filial = filial["id_filial"]
     nome_filial = filial["nome"]
     colaboradores = filial["colaboradores"]
@@ -678,13 +696,51 @@ def processar_filial(cliente, token_evo3, filial, periodos, agora, config):
     )
 
     assunto = f"Relatório de Vendas - {nome_filial} - {ontem_str}"
-    return enviar_email(
-        config,
-        assunto=assunto,
-        corpo_texto=texto,
-        anexos=[txt_path, csv_path],
-        corpo_html=html,
-    )
+    if dry_run:
+        print("  [dry-run] E-mail nao enviado.")
+        email_enviado = False
+    else:
+        email_enviado = enviar_email(
+            config,
+            assunto=assunto,
+            corpo_texto=texto,
+            anexos=[txt_path, csv_path],
+            corpo_html=html,
+        )
+
+    if not sem_whatsapp and (whatsapp_ativo(config) or dry_run):
+        print("\n  Notificando por WhatsApp...")
+        # Mesmo relatorio do e-mail, so que sem o grafico circular: e essa
+        # versao que vira PNG, porque o WhatsApp nao renderiza HTML.
+        imagem = gerar_imagem_relatorio(
+            montar_email_html(
+                nome_filial,
+                colaboradores_resultados,
+                totais,
+                ontem_str,
+                periodo_inicio_str,
+                meta_mes=meta_mes,
+                incluir_donut=False,
+            ),
+            OUTPUT_DIR / f"whatsapp_{slug}_{data_arquivo}.png",
+            config,
+        )
+        if imagem:
+            print(f"  Imagem do relatorio: {imagem}")
+        notificar_whatsapp_filial(
+            config,
+            nome_filial,
+            colaboradores_resultados,
+            totais,
+            ontem_str,
+            periodo_inicio_str,
+            meta_mes=meta_mes,
+            email_enviado=email_enviado,
+            imagem=imagem,
+            dry_run=dry_run,
+        )
+
+    return {"nome": nome_filial, "email_enviado": email_enviado}
 
 
 def montar_conteudo_sms_resumo(config, ontem_str):
@@ -716,14 +772,38 @@ def parse_args(argv=None):
         help="Processa apenas a filial com este id_filial (opcional).",
     )
     parser.add_argument(
+        "--sem-resumo",
         "--sem-sms",
+        dest="sem_resumo",
         action="store_true",
-        help="Nao envia SMS ao final (usado pelo orquestrador, que notifica uma vez).",
+        help="Nao envia a notificacao de fim de lote (SMS e resumo por "
+        "WhatsApp). Usado pelo orquestrador, que notifica uma vez.",
+    )
+    parser.add_argument(
+        "--sem-whatsapp",
+        action="store_true",
+        help="Nao notifica a filial por WhatsApp (o e-mail continua saindo).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Gera os arquivos e a imagem e mostra a mensagem do WhatsApp, "
+        "mas nao envia e-mail, SMS nem faz a chamada de API.",
     )
     return parser.parse_args(argv)
 
 
+def configurar_saida_utf8():
+    """O console do Windows abre em cp1252 e quebra nos emoji das mensagens."""
+    for fluxo in (sys.stdout, sys.stderr):
+        try:
+            fluxo.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv=None):
+    configurar_saida_utf8()
     args = parse_args(argv)
     config = carregar_config()
     filiais = obter_filiais(config, id_filial=args.id_filial)
@@ -736,17 +816,40 @@ def main(argv=None):
     token_evo3 = cliente.login()
 
     print(f"2/2 - Processando {len(filiais)} filial(is)...")
+    processadas = []
     emails_enviados = 0
     for filial in filiais:
-        if processar_filial(cliente, token_evo3, filial, periodos, agora, config):
+        resultado = processar_filial(
+            cliente,
+            token_evo3,
+            filial,
+            periodos,
+            agora,
+            config,
+            dry_run=args.dry_run,
+            sem_whatsapp=args.sem_whatsapp,
+        )
+        processadas.append(resultado["nome"])
+        if resultado["email_enviado"]:
             emails_enviados += 1
 
-    if emails_enviados and not args.sem_sms:
-        notificar_sms_resumo(config, periodos["ontem_str"])
+    if args.sem_resumo or not processadas:
+        return
+
+    ontem_str = periodos["ontem_str"]
+    if emails_enviados and not args.dry_run:
+        notificar_sms_resumo(config, ontem_str)
+    notificar_whatsapp_resumo(
+        config,
+        ontem_str,
+        processadas,
+        email_enviado=bool(emails_enviados),
+        dry_run=args.dry_run,
+    )
 
 
 if __name__ == "__main__":
     try:
         main()
-    except EvoError as exc:
+    except (EvoError, WhatsAppError) as exc:
         sys.exit(f"\nErro: {exc}")
