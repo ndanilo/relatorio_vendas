@@ -143,7 +143,7 @@ The image caption is deliberately short — the numbers are already in the PNG, 
 📍 _Anacã Música_ · 07/09/2026
 ```
 
-The PNG is the same email report rendered in Chromium, with two differences: **no donut chart** (it carries no labels, so it does not break in email clients, and would be unreadable on its own outside the HTML) and **no attachment notice** in the footer, since `.txt` and `.csv` do not travel with the image. Everything else is included: header, KPIs, goal, contribution, and yesterday's detail.
+The PNG is drawn with Pillow from the same data that feeds the email, with the same content and palette: header, KPIs, goal, contribution, and yesterday's detail. Left out are the donut chart (it carries no labels, so it does not break in email clients, and would be unreadable on its own) and the attachment notice in the footer, since `.txt` and `.csv` do not travel with the image.
 
 | Field | Description |
 |-------|-------------|
@@ -164,7 +164,7 @@ x-api-key: ...
 Content-Type: multipart/form-data; boundary=----relatorioVendas...
 ```
 
-Playwright is **optional**: without it, or if rendering fails, the message goes out as text only and the job continues. Install with `py -m pip install playwright && py -m playwright install chromium`.
+Pillow is **optional**: without it, or if drawing fails, the message goes out as text only and the job continues. Install with `python3 -m pip install -r requirements.txt` — no browser and no system library involved.
 
 To preview messages and images without sending anything, use `--dry-run`:
 

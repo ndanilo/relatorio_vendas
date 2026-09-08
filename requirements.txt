@@ -1,12 +1,14 @@
 # Dependencias do relatorio de vendas EVO.
 #
-# O acesso ao EVO, o envio de e-mail, os graficos (SVG inline + tabelas HTML)
-# e a chamada da API de WhatsApp usam apenas a biblioteca padrao do Python 3.
+# O acesso ao EVO, o envio de e-mail, os graficos do e-mail (SVG inline +
+# tabelas HTML) e a chamada da API de WhatsApp usam apenas a biblioteca
+# padrao do Python 3.
 #
-# O Playwright abaixo e OPCIONAL: serve so para renderizar o relatorio em PNG
-# e anexar na notificacao do WhatsApp. Sem ele a mensagem sai apenas com o
+# O Pillow abaixo e OPCIONAL: serve so para desenhar o relatorio em PNG e
+# anexar na notificacao do WhatsApp. Sem ele a mensagem sai apenas com o
 # texto e o job continua normalmente.
 #
-# Depois de instalar, baixe o navegador uma vez:
-#   py -m playwright install chromium
-playwright>=1.44
+# Nao ha nada a instalar alem do pip - nem navegador, nem lib de sistema.
+# O wheel do Pillow ja vem com tudo compilado e a fonte usada no desenho
+# esta versionada em assets/fonts.
+pillow>=10.1

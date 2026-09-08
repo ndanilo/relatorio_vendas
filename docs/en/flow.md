@@ -136,7 +136,7 @@ Filter and date details: [filters-and-periods.md](filters-and-periods.md).
 
 ### Step 4 — Notify on WhatsApp (per branch + summary)
 
-After each branch email, the script renders the report as a PNG (Chromium via Playwright, same email HTML without the donut) and calls the local notification API:
+After each branch email, the script draws the report as a PNG (Pillow, no HTML involved) and calls the local notification API:
 
 | Item | Value |
 |------|--------|
@@ -146,7 +146,7 @@ After each branch email, the script renders the report as a PNG (Chromium via Pl
 | Auth | `x-api-key` header |
 | Fields | `to` (JID), `message` (text), `file` (PNG, optional) |
 
-There is no closing message on the happy path: if every branch succeeds, the batch ends with the images already sent. Only when a branch fails does a final text-only alert go out listing what was not sent. Playwright is optional: without it the message goes without the attachment. Configuration in [configuration.md](configuration.md).
+There is no closing message on the happy path: if every branch succeeds, the batch ends with the images already sent. Only when a branch fails does a final text-only alert go out listing what was not sent. Pillow is optional: without it the message goes without the attachment. Configuration in [configuration.md](configuration.md).
 
 ---
 

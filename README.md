@@ -20,18 +20,23 @@ Text and bars use **plain HTML**; the contribution donut is **SVG with shapes on
 
 - Python 3.9+
 - No required dependencies (standard library only)
-- Playwright **optional**, only to attach the WhatsApp image
+- Pillow **optional**, only to draw the image attached on WhatsApp
 
 ## Installation
 
-Nothing to install to run the report and send email. To attach the WhatsApp image (and to validate charts, see below):
+Nothing to install to run the report and send email. To attach the WhatsApp image:
 
 ```powershell
 py -m pip install -r requirements.txt
-py -m playwright install chromium
 ```
 
-Without Playwright the WhatsApp message goes out as text only and the job continues.
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+That is all, containers included: there is no browser to download and no system library to install. The Pillow wheel ships precompiled and the font used for drawing is versioned in `assets/fonts`.
+
+Without Pillow the WhatsApp message goes out as text only and the job continues. To skip drawing entirely, set `whatsapp.anexar_imagem` to `false`.
 
 ## Configuration
 
@@ -82,9 +87,11 @@ py gerar_relatorio_vendas.py --id-filial 1 --dry-run
 
 ## Validate email charts
 
-Renders the email in Chromium (Playwright) and checks that SVG and HTML fallback show the same numbers, including simulating a client that strips SVG:
+Renders the email in Chromium (Playwright) and checks that SVG and HTML fallback show the same numbers, including simulating a client that strips SVG. Development only — the scheduled job does not need this:
 
 ```powershell
+py -m pip install -r requirements-dev.txt
+py -m playwright install chromium
 py scripts/validar_graficos_email.py
 ```
 
@@ -97,11 +104,13 @@ Generates `test_grafico_*.png` screenshots (with and without SVG) for visual ins
 | `rodar_relatorios_filiais.py` | Orchestrates one call per branch (continues on error) |
 | `gerar_relatorio_vendas.py` | Login, API, files, and email delivery |
 | `email_relatorio.py` | Responsive HTML, inline SVG, and table fallback |
-| `notificacao_whatsapp.py` | WhatsApp messages, PNG rendering, and local API call |
+| `imagem_relatorio.py` | Draws the report as a PNG with Pillow (WhatsApp attachment) |
+| `notificacao_whatsapp.py` | WhatsApp messages and local API call |
+| `assets/fonts/` | Versioned DejaVu Sans, used to draw the PNG |
 | `scripts/validar_graficos_email.py` | Chart validation with Playwright |
 | `evo_config.example.json` | Configuration template (copy to `evo_config.json`) |
 | `evo_config.json` | Real credentials — local, not versioned |
-| `requirements.txt` | Playwright (optional, only for the WhatsApp image) |
+| `requirements.txt` | Pillow (optional, only for the WhatsApp image) |
 | `requirements-dev.txt` | Playwright, validation only |
 | `relatorios/` | `.txt`, `.csv`, and the WhatsApp PNG outputs |
 

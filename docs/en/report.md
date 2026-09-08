@@ -54,25 +54,41 @@ Failed scenarios are retried (default: 3 attempts). Screenshots go to `test_graf
 
 ## WhatsApp image (PNG)
 
-WhatsApp does not render HTML, so the notification carries the report as an image. The PNG is the **same email HTML**, produced by `montar_email_html(..., incluir_donut=False, incluir_rodape_anexos=False)` and screenshotted in Chromium — there is no second layout builder, so the image can never drift from the email.
+WhatsApp does not render HTML, so the notification carries the report as an image. The PNG is **drawn with Pillow** in [`imagem_relatorio.py`](../../imagem_relatorio.py), from the same data that feeds the email.
 
-There are only two differences:
+### Why not screenshot the HTML
 
-- **No donut.** It is drawn with no labels at all (see above), which works inside the email where the HTML ranking sits right below it, but not alone in an image.
+That was the first approach, using Chromium via Playwright, and it was dropped for two reasons measured in production:
+
+- **Cost.** Chromium takes ~3.8s just to boot, and the orchestrator runs one subprocess per branch, so every branch paid that toll. Drawing directly takes ~0.2s.
+- **Native dependencies.** Every HTML-to-image converter embeds a browser engine (Chromium, wkhtmltoimage, WeasyPrint) and needs system libraries `pip` does not install — `libXdamage`, `libnss3`, `libgbm`. In a lean container the attachment simply failed.
+
+The price is maintaining a second layout: `imagem_relatorio.py` mirrors the visual structure of `email_relatorio.py`. To limit the drift, the palette (`COR_*`), `formatar_moeda`, and `cor_colaborador` are imported from the email module — changing a color still applies to both. **Structural changes are not shared:** when you change email blocks, update both files.
+
+### What goes in
+
+Same content as the email, minus two things:
+
+- **No donut.** It is drawn with no labels at all (see above), which works inside the email where the ranking sits right below it, but not alone in an image.
 - **No attachment notice** in the footer, which reads only `Relatório automático do sistema EVO.` — the `.txt` and `.csv` do not travel with the image.
 
-Everything else stays: header, cards, goal, month total, ranking, and yesterday's detail. The message carrying the PNG is just the title, since the numbers are in the image itself.
+Header, cards, goal, month total, ranking, and yesterday's detail all stay. The message carrying the PNG is just the title, since the numbers are in the image itself.
+
+### Font
+
+The font bundled with Pillow (Aileron) only covers ASCII: "Anacã Música" and "Contribuição" would turn into tofu boxes. That is why **DejaVu Sans** (Regular + Bold) is versioned in `assets/fonts/`, with its original license in `LICENSE_DEJAVU`. Drawing therefore depends on no installed font and looks identical on Windows and in the container.
 
 | Item | Value |
 |------|-------|
 | File | `relatorios/whatsapp_{slug-da-filial}_YYYY-MM-DD.png` |
-| Width | `whatsapp.imagem_largura` CSS px (default 640) |
+| Width | `whatsapp.imagem_largura` logical px (default 640) |
 | Density | `whatsapp.imagem_escala` (default 2, i.e. 1280 real px) |
-| Typical size | 170-380 KB, height between 1300 and 2200 CSS px |
+| Typical size | 140-350 KB, height between 1000 and 1800 logical px |
+| Drawing time | ~0.15s on a quiet day, ~0.3s with 12 sales |
 
 On a busy day the image exceeds a 1:3 ratio. The chat preview is cropped, but the full image opens normally on tap. If text looks blurry on your phone, raise `imagem_escala`.
 
-Rendering requires Playwright, which is **optional**: without it the message goes out as text only and the job continues.
+Drawing requires Pillow, which is **optional**: without it the message goes out as text only and the job continues.
 
 ## Generated files
 

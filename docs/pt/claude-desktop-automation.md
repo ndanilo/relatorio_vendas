@@ -59,24 +59,24 @@ Como o relatório sempre olha para **ontem** (ver [filtros-e-periodos.md](filtro
 
 ## Divergência conhecida: passos 2 e 3
 
-Os passos 2 e 3 do prompt não correspondem a este repositório:
+O passo 3 do prompt não corresponde a este repositório: **`matplotlib` não é usado em lugar nenhum**. Os gráficos do e-mail são SVG inline com fallback em tabelas HTML, gerados sem dependência externa. Em um ambiente limpo o `import matplotlib` levanta `ModuleNotFoundError`, e o próprio prompt manda o agente parar (`PARE e relate o erro. Nao siga adiante.`) — o relatório nunca chega a ser gerado. Provável resquício de quando os gráficos eram imagens renderizadas com `matplotlib`.
 
-- `requirements.txt` **não instala nada** — declara explicitamente que o relatório usa apenas a biblioteca padrão do Python 3.
-- `matplotlib` não é usado em lugar nenhum deste projeto. Os gráficos do e-mail são **SVG inline com fallback em tabelas HTML**, gerados sem dependência externa.
+O passo 2 hoje faz sentido: `requirements.txt` instala o Pillow, usado para desenhar o PNG que vai anexado no WhatsApp. E o `pip install` basta — não há navegador para baixar nem biblioteca de sistema para instalar.
 
-Como o `pip install` não instala nada, o `import matplotlib` do passo 3 só passa se o runner já tiver o pacote por outro motivo. Em um ambiente limpo ele levanta `ModuleNotFoundError`, e o próprio prompt manda o agente parar (`PARE e relate o erro. Nao siga adiante.`) — o relatório nunca chega a ser gerado.
-
-Provável resquício de uma versão antiga, de quando os gráficos eram imagens renderizadas com `matplotlib`.
-
-Se o alvo for este repositório, os passos 2 e 3 podem ser trocados por um smoke test sem dependências:
+Substituição sugerida para os passos 2 e 3:
 
 ```text
-2. Nao instale dependencias: o job usa apenas a biblioteca padrao do
-   Python 3. Se algum passo pedir um pacote externo, PARE e relate o erro.
+2. Instale as dependencias antes de qualquer outra coisa:
+   python3 -m pip install -r requirements.txt
+   (em runner Windows, use: py -m pip install -r requirements.txt)
+   Se o pip falhar, nao pare: o job so perde a imagem anexada no
+   WhatsApp e continua enviando a notificacao em texto.
 3. Confirme que o modulo principal carrega:
    python3 -c "import gerar_relatorio_vendas"
    (em runner Windows, use: py -c "import gerar_relatorio_vendas")
    Se falhar, PARE e relate o erro. Nao siga adiante.
 ```
 
-`requirements-dev.txt` (Playwright) existe apenas para a validação local dos gráficos e não deve ser instalado pela tarefa agendada.
+Repare que a falta do Pillow **não** deve abortar a execução: o anexo é opcional por projeto e a mensagem continua saindo em texto. Só a falha do `import` justifica parar.
+
+`requirements-dev.txt` (Playwright) existe apenas para a validação local dos gráficos do e-mail e não deve ser instalado pela tarefa agendada.

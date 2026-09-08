@@ -709,22 +709,17 @@ def processar_filial(
 
     if not sem_whatsapp and (whatsapp_ativo(config) or dry_run):
         print("\n  Notificando por WhatsApp...")
-        # Mesmo relatorio do e-mail, sem o grafico circular e sem o rodape
-        # dos anexos: e essa versao que vira PNG, porque o WhatsApp nao
-        # renderiza HTML.
+        # O WhatsApp nao renderiza HTML, entao o relatorio vai desenhado
+        # como PNG a partir dos mesmos dados que alimentam o e-mail.
         imagem = gerar_imagem_relatorio(
-            montar_email_html(
-                nome_filial,
-                colaboradores_resultados,
-                totais,
-                ontem_str,
-                periodo_inicio_str,
-                meta_mes=meta_mes,
-                incluir_donut=False,
-                incluir_rodape_anexos=False,
-            ),
-            OUTPUT_DIR / f"whatsapp_{slug}_{data_arquivo}.png",
             config,
+            OUTPUT_DIR / f"whatsapp_{slug}_{data_arquivo}.png",
+            nome_filial,
+            colaboradores_resultados,
+            totais,
+            ontem_str,
+            periodo_inicio_str,
+            meta_mes=meta_mes,
         )
         if imagem:
             print(f"  Imagem do relatorio: {imagem}")

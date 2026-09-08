@@ -136,7 +136,7 @@ Detalhes dos filtros e das datas: [filtros-e-periodos.md](filtros-e-periodos.md)
 
 ### Passo 4 — Notificar por WhatsApp (por filial + resumo)
 
-Depois do e-mail de cada filial, o script renderiza o relatório em PNG (Chromium via Playwright, mesmo HTML do e-mail sem o donut) e chama a API local de notificações:
+Depois do e-mail de cada filial, o script desenha o relatório em PNG (Pillow, sem passar por HTML) e chama a API local de notificações:
 
 | Item | Valor |
 |------|--------|
@@ -146,7 +146,7 @@ Depois do e-mail de cada filial, o script renderiza o relatório em PNG (Chromiu
 | Autenticação | Header `x-api-key` |
 | Campos | `to` (JID), `message` (texto), `file` (PNG, opcional) |
 
-Não há mensagem de fechamento no caminho feliz: se todas as filiais passarem, o lote termina com as imagens já enviadas. Só quando alguma filial falha sai um último aviso, só texto, listando o que não foi enviado. O Playwright é opcional: sem ele a mensagem vai sem anexo. Configuração em [configuracao.md](configuracao.md).
+Não há mensagem de fechamento no caminho feliz: se todas as filiais passarem, o lote termina com as imagens já enviadas. Só quando alguma filial falha sai um último aviso, só texto, listando o que não foi enviado. O Pillow é opcional: sem ele a mensagem vai sem anexo. Configuração em [configuracao.md](configuracao.md).
 
 ---
 

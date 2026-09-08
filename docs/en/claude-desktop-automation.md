@@ -59,24 +59,24 @@ Since the report always looks at **yesterday** (see [filters-and-periods.md](fil
 
 ## Known mismatch: steps 2 and 3
 
-Steps 2 and 3 of the prompt do not match this repository:
+Step 3 of the prompt does not match this repository: **`matplotlib` is not used anywhere**. Email charts are inline SVG with an HTML table fallback, generated with no external dependency. On a clean environment `import matplotlib` raises `ModuleNotFoundError`, and the prompt itself tells the agent to stop (`STOP and report the error. Do not continue.`) — the report is never generated. Likely leftover from when charts were images rendered with `matplotlib`.
 
-- `requirements.txt` **installs nothing** — it explicitly states the report uses only the Python 3 standard library.
-- `matplotlib` is not used anywhere in this project. Email charts are **inline SVG with HTML table fallback**, generated with no external dependency.
+Step 2 does make sense today: `requirements.txt` installs Pillow, used to draw the PNG attached to the WhatsApp message. And `pip install` is enough — there is no browser to download and no system library to install.
 
-Since `pip install` installs nothing, the step 3 `import matplotlib` only passes if the runner already has the package for another reason. On a clean environment it raises `ModuleNotFoundError`, and the prompt itself tells the agent to stop (`STOP and report the error. Do not continue.`) — the report is never generated.
-
-Likely leftover from an older version when charts were images rendered with `matplotlib`.
-
-If the target is this repository, steps 2 and 3 can be replaced with a dependency-free smoke test:
+Suggested replacement for steps 2 and 3:
 
 ```text
-2. Do not install dependencies: the job uses only the Python 3
-   standard library. If any step asks for an external package, STOP and report the error.
+2. Install dependencies before anything else:
+   python3 -m pip install -r requirements.txt
+   (on a Windows runner, use: py -m pip install -r requirements.txt)
+   If pip fails, do not stop: the job only loses the image attached on
+   WhatsApp and still sends the notification as text.
 3. Confirm the main module loads:
    python3 -c "import gerar_relatorio_vendas"
    (on a Windows runner, use: py -c "import gerar_relatorio_vendas")
    If it fails, STOP and report the error. Do not continue.
 ```
 
-`requirements-dev.txt` (Playwright) exists only for local chart validation and should not be installed by the scheduled task.
+Note that a missing Pillow must **not** abort the run: the attachment is optional by design and the message still goes out as text. Only a failing `import` justifies stopping.
+
+`requirements-dev.txt` (Playwright) exists only for local validation of the email charts and should not be installed by the scheduled task.

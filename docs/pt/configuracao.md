@@ -143,7 +143,7 @@ A legenda da imagem é curta de propósito — os números já estão no PNG, n�
 📍 _Anacã Música_ · 07/09/2026
 ```
 
-O PNG é o mesmo relatório do e-mail renderizado no Chromium, com duas diferenças: **sem o gráfico circular** (o donut não tem rótulos, para não quebrar em clientes de e-mail, e ficaria ilegível sozinho fora do HTML) e **sem a menção aos anexos** no rodapé, já que `.txt` e `.csv` não acompanham a imagem. Todo o resto entra: cabeçalho, KPIs, meta, contribuição e o detalhe de ontem.
+O PNG é desenhado com Pillow a partir dos mesmos dados que alimentam o e-mail, com o mesmo conteúdo e a mesma paleta: cabeçalho, KPIs, meta, contribuição e o detalhe de ontem. Fora ficam o gráfico circular (o donut não tem rótulos, para não quebrar em clientes de e-mail, e ficaria ilegível sozinho) e a menção aos anexos no rodapé, já que `.txt` e `.csv` não acompanham a imagem.
 
 | Campo | Descrição |
 |-------|-----------|
@@ -164,7 +164,7 @@ x-api-key: ...
 Content-Type: multipart/form-data; boundary=----relatorioVendas...
 ```
 
-O Playwright é **opcional**: sem ele, ou se a renderização falhar, a mensagem sai só com o texto e o job continua. Instale com `py -m pip install playwright && py -m playwright install chromium`.
+O Pillow é **opcional**: sem ele, ou se o desenho falhar, a mensagem sai só com o texto e o job continua. Instale com `python3 -m pip install -r requirements.txt` — não há navegador nem biblioteca de sistema envolvida.
 
 Para ver as mensagens e as imagens sem enviar nada, use `--dry-run`:
 

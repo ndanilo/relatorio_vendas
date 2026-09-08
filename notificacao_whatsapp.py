@@ -9,12 +9,9 @@ Sao dois tipos de mensagem:
   2) Um alerta ao final do lote, so texto, e SO quando alguma filial falha.
      No caminho feliz nada e enviado alem das imagens.
 
-O PNG e o proprio HTML do e-mail renderizado no Chromium via Playwright,
-sem o grafico circular e sem o rodape que cita os anexos. Assim a imagem
-nunca diverge do e-mail.
-
-Playwright e opcional: se nao estiver instalado, ou se a renderizacao
-falhar, a mensagem sai apenas com o texto e o job segue.
+O PNG e desenhado por imagem_relatorio.py (Pillow), sem passar por HTML.
+Se o desenho falhar por qualquer motivo, a mensagem sai apenas com o texto
+e o job segue.
 
 Contrato da API (multipart/form-data):
     POST {whatsapp.url}
@@ -44,58 +41,55 @@ def whatsapp_ativo(config):
 # ----------------------------------------------------------------------
 # Imagem
 # ----------------------------------------------------------------------
-def renderizar_png(html, destino, largura=640, escala=2):
-    """Renderiza o HTML no Chromium e salva um PNG de pagina inteira.
+def gerar_imagem_relatorio(
+    config,
+    destino,
+    nome_filial,
+    colaboradores_resultados,
+    totais,
+    ontem_str,
+    periodo_inicio_str,
+    meta_mes=None,
+):
+    """Desenha o PNG do relatorio aplicando os ajustes do evo_config.json.
 
-    Retorna o Path do arquivo, ou None se o Playwright nao estiver
-    disponivel ou a renderizacao falhar (a mensagem entao vai sem anexo).
+    Retorna o Path do arquivo, ou None se o anexo estiver desligado ou o
+    desenho falhar - nesse caso a mensagem sai so com o texto e o job segue.
     """
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print(
-            "[AVISO] Playwright nao instalado; a mensagem do WhatsApp vai sem "
-            "imagem.\n        Instale com: py -m pip install playwright && "
-            "py -m playwright install chromium"
-        )
-        return None
-
-    destino = Path(destino)
-    destino.parent.mkdir(parents=True, exist_ok=True)
-
-    try:
-        with sync_playwright() as p:
-            navegador = p.chromium.launch()
-            try:
-                pagina = navegador.new_page(
-                    viewport={"width": int(largura), "height": 900},
-                    device_scale_factor=float(escala),
-                )
-                pagina.set_content(html, wait_until="load")
-                pagina.screenshot(path=str(destino), full_page=True)
-            finally:
-                navegador.close()
-    except Exception as exc:  # noqa: BLE001 - imagem e opcional, nao derruba o job
-        print(
-            f"[AVISO] Falha ao gerar a imagem do relatorio ({exc}); "
-            "a mensagem do WhatsApp vai sem anexo."
-        )
-        return None
-
-    return destino
-
-
-def gerar_imagem_relatorio(html_sem_donut, destino, config):
-    """Aplica largura/escala do evo_config.json e renderiza o PNG."""
     cfg = _cfg(config)
     if not cfg.get("anexar_imagem", True):
         return None
-    return renderizar_png(
-        html_sem_donut,
-        destino,
-        largura=cfg.get("imagem_largura", 640),
-        escala=cfg.get("imagem_escala", 2),
-    )
+
+    try:
+        from imagem_relatorio import gerar_png
+    except ImportError as exc:
+        print(
+            f"[AVISO] Nao consegui carregar o desenhista do relatorio ({exc}); "
+            "a mensagem do WhatsApp vai sem imagem.\n"
+            "        Instale as dependencias: python3 -m pip install -r "
+            "requirements.txt"
+        )
+        return None
+
+    try:
+        return gerar_png(
+            destino,
+            nome_filial,
+            colaboradores_resultados,
+            totais,
+            ontem_str,
+            periodo_inicio_str,
+            meta_mes=meta_mes,
+            largura=cfg.get("imagem_largura", 640),
+            escala=cfg.get("imagem_escala", 2),
+        )
+    except Exception as exc:  # noqa: BLE001 - imagem e opcional, nao derruba o job
+        print(
+            "[AVISO] Nao consegui gerar a imagem do relatorio; a mensagem do "
+            "WhatsApp vai sem anexo."
+        )
+        print(f"        Motivo: {' '.join(str(exc).split())[:200]}")
+        return None
 
 
 # ----------------------------------------------------------------------

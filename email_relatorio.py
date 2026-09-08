@@ -228,13 +228,9 @@ def _linhas_participacao(participacoes):
     return "".join(linhas)
 
 
-def _bloco_contribuicao(participacoes, total_mes, incluir_donut=True):
-    """Um unico cartao: donut (formas) + total em HTML + ranking por colaborador.
-
-    incluir_donut=False remove so o grafico circular; o total e o ranking
-    continuam iguais. Usado na imagem enviada por WhatsApp.
-    """
-    svg = gerar_svg_contribuicao(participacoes) if incluir_donut else None
+def _bloco_contribuicao(participacoes, total_mes):
+    """Um unico cartao: donut (formas) + total em HTML + ranking por colaborador."""
+    svg = gerar_svg_contribuicao(participacoes)
     donut_html = ""
     if svg:
         # Outlook ignora SVG; o comentario evita o cartao vazio no Word.
@@ -356,15 +352,8 @@ def montar_email_html(
     ontem_str,
     periodo_inicio_str,
     meta_mes=None,
-    incluir_donut=True,
-    incluir_rodape_anexos=True,
 ):
-    """Retorna o corpo HTML completo do e-mail (graficos SVG inline + HTML).
-
-    A versao que vira PNG no WhatsApp usa incluir_donut=False (o donut nao
-    tem rotulo e fica ilegivel fora do HTML) e incluir_rodape_anexos=False
-    (nao ha .txt/.csv junto da imagem).
-    """
+    """Retorna o corpo HTML completo do e-mail (graficos SVG inline + HTML)."""
     _, total_ontem = resumir(totais["registros_ontem"])
     qtd_ontem, _ = resumir(totais["registros_ontem"])
     qtd_mes, total_mes = resumir(totais["registros_mes"])
@@ -434,9 +423,7 @@ def montar_email_html(
         partes.append(_bloco_meta(total_mes, meta_mes))
 
     partes.append(_titulo_secao("Contribuição no mês"))
-    partes.append(
-        _bloco_contribuicao(participacoes, total_mes, incluir_donut=incluir_donut)
-    )
+    partes.append(_bloco_contribuicao(participacoes, total_mes))
 
     partes.append(_titulo_secao(f"Detalhe de ontem ({ontem_str})"))
     for indice, resultado in enumerate(colaboradores_resultados):
@@ -444,13 +431,11 @@ def montar_email_html(
             _secao_colaborador(resultado, indice, ontem_str, periodo_label)
         )
 
-    rodape = "Relatório automático do sistema EVO."
-    if incluir_rodape_anexos:
-        rodape += " Os arquivos .txt e .csv estão anexados a este e-mail."
     partes.append(
         '<tr><td style="padding:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;'
         f'font-size:11px;color:{COR_SUAVE};line-height:1.5;">'
-        f"{escapar(rodape)}</td></tr>"
+        "Relatório automático do sistema EVO. "
+        "Os arquivos .txt e .csv estão anexados a este e-mail.</td></tr>"
     )
 
     html = (
