@@ -146,7 +146,7 @@ Depois do e-mail de cada filial, o script renderiza o relatório em PNG (Chromiu
 | Autenticação | Header `x-api-key` |
 | Campos | `to` (JID), `message` (texto), `file` (PNG, opcional) |
 
-Ao final do lote sai uma última mensagem, só texto, com o balanço das filiais. O Playwright é opcional: sem ele a mensagem vai sem anexo. Configuração em [configuracao.md](configuracao.md).
+Não há mensagem de fechamento no caminho feliz: se todas as filiais passarem, o lote termina com as imagens já enviadas. Só quando alguma filial falha sai um último aviso, só texto, listando o que não foi enviado. O Playwright é opcional: sem ele a mensagem vai sem anexo. Configuração em [configuracao.md](configuracao.md).
 
 ---
 

@@ -36,7 +36,7 @@ from gerar_relatorio_vendas import (  # noqa: E402
 )
 from notificacao_whatsapp import (  # noqa: E402
     WhatsAppError,
-    notificar_whatsapp_resumo,
+    notificar_whatsapp_falhas,
 )
 
 
@@ -170,30 +170,29 @@ def main(argv=None):
         for filial, motivo in falhas:
             print(f'  - {filial["nome"]} (id={filial["id_filial"]}): {motivo}')
 
-    # Uma notificacao de resumo por destinatario apos o lote (nao uma por
-    # filial). As mensagens por filial ja sairam dentro de cada subprocesso.
-    if ok:
-        try:
-            config = carregar_config()
-            email_ativo = bool((config.get("email") or {}).get("ativo"))
-            ontem_str = calcular_periodos(datetime.now())["ontem_str"]
-            if email_ativo and not args.dry_run:
-                print("\nEnviando SMS de resumo...")
-                notificar_sms_resumo(config, ontem_str)
-            print("\nEnviando resumo por WhatsApp...")
-            notificar_whatsapp_resumo(
+    # Fim de lote: cada filial ja mandou a propria imagem por WhatsApp, entao
+    # aqui so sai o SMS (hoje desligado) e, se algo quebrou, um alerta.
+    erro_notificacao = None
+    try:
+        config = carregar_config()
+        email_ativo = bool((config.get("email") or {}).get("ativo"))
+        ontem_str = calcular_periodos(datetime.now())["ontem_str"]
+        if ok and email_ativo and not args.dry_run:
+            print("\nEnviando SMS de resumo...")
+            notificar_sms_resumo(config, ontem_str)
+        if falhas:
+            print("\nAvisando as falhas por WhatsApp...")
+            notificar_whatsapp_falhas(
                 config,
                 ontem_str,
-                [filial["nome"] for filial in ok],
-                falhas=[(filial["nome"], motivo) for filial, motivo in falhas],
-                email_enviado=email_ativo,
+                [(filial["nome"], motivo) for filial, motivo in falhas],
                 dry_run=args.dry_run,
             )
-        except (EvoError, WhatsAppError) as exc:
-            print(f"[ERRO] Falha ao enviar o resumo do lote: {exc}")
-            falhas.append(({"nome": "Resumo", "id_filial": "-"}, str(exc)))
+    except (EvoError, WhatsAppError) as exc:
+        erro_notificacao = str(exc)
+        print(f"[ERRO] Falha na notificacao de fim de lote: {exc}")
 
-    if falhas:
+    if falhas or erro_notificacao:
         sys.exit(1)
 
     print("Todas as filiais foram processadas com sucesso.")

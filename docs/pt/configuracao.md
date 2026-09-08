@@ -73,7 +73,7 @@ Login, DNS e e-mail são **globais**. Filiais e colaboradores ficam em `filiais`
 | `dns` | Tenant no EVO (ex.: `minha-academia`) |
 | `login` / `senha` | Credenciais do perfil (iguais para todas as filiais) |
 | `email` | Remetente, destinatário, CC e SMTP (iguais para todas as filiais) |
-| `whatsapp` | Notificação via API local: uma por filial (com imagem) + resumo final |
+| `whatsapp` | Notificação via API local: uma por filial, com o relatório em imagem |
 | `sms` | Notificação Brevo. Substituída pelo WhatsApp; mantida desligada |
 
 ## Filiais
@@ -131,10 +131,19 @@ O canal principal de notificação. São duas mensagens de tipos diferentes:
 
 | Momento | Conteúdo |
 |---------|----------|
-| Uma **por filial**, logo depois do e-mail | Texto com os números da filial + o relatório em PNG anexo |
-| Um **resumo** ao final do lote | Só texto: quais filiais foram processadas e o que falhou |
+| Uma **por filial**, logo depois do e-mail | O relatório em PNG, com o título como legenda |
+| Um **alerta** ao final do lote, só se algo falhar | Só texto: quais filiais não foram enviadas e por quê |
 
-O PNG é o mesmo relatório do e-mail renderizado no Chromium, **sem o gráfico circular** — o donut não tem rótulos (para não quebrar em clientes de e-mail) e ficaria ilegível sozinho fora do HTML. Todo o resto entra: cabeçalho, KPIs, meta, contribuição e o detalhe de ontem.
+No caminho feliz sai só uma mensagem por filial — não há resumo de fechamento, porque as imagens já dizem tudo.
+
+A legenda da imagem é curta de propósito — os números já estão no PNG, não faz sentido repetir tudo em texto:
+
+```
+*RELATÓRIO DE VENDAS*
+📍 _Anacã Música_ · 07/09/2026
+```
+
+O PNG é o mesmo relatório do e-mail renderizado no Chromium, com duas diferenças: **sem o gráfico circular** (o donut não tem rótulos, para não quebrar em clientes de e-mail, e ficaria ilegível sozinho fora do HTML) e **sem a menção aos anexos** no rodapé, já que `.txt` e `.csv` não acompanham a imagem. Todo o resto entra: cabeçalho, KPIs, meta, contribuição e o detalhe de ontem.
 
 | Campo | Descrição |
 |-------|-----------|

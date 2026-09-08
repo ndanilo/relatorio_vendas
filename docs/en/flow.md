@@ -146,7 +146,7 @@ After each branch email, the script renders the report as a PNG (Chromium via Pl
 | Auth | `x-api-key` header |
 | Fields | `to` (JID), `message` (text), `file` (PNG, optional) |
 
-At the end of the batch a final text-only message goes out with the branch tally. Playwright is optional: without it the message goes without the attachment. Configuration in [configuration.md](configuration.md).
+There is no closing message on the happy path: if every branch succeeds, the batch ends with the images already sent. Only when a branch fails does a final text-only alert go out listing what was not sent. Playwright is optional: without it the message goes without the attachment. Configuration in [configuration.md](configuration.md).
 
 ---
 

@@ -11,8 +11,8 @@ Python automation that generates per-employee sales reports in the EVO (W12) sys
 3. Fetches sales from **yesterday** and **month-to-yesterday** for the branch employees.
 4. Generates a `.txt` and a `.csv` per branch in `relatorios/`.
 5. Sends a responsive HTML email per branch (contribution and goal charts), if `email.ativo` is `true`.
-6. Notifies each branch on WhatsApp (local API), attaching the same report rendered as a PNG without the donut chart, if `whatsapp.ativo` is `true`.
-7. At the end of the batch, sends a text-only WhatsApp summary. SMS (Brevo) was replaced by this channel and is disabled.
+6. Notifies each branch on WhatsApp (local API), attaching the same report rendered as a PNG without the donut chart, if `whatsapp.ativo` is `true`. The message is just the title — the numbers are in the image.
+7. If a branch fails, sends a WhatsApp alert at the end of the batch. When everything succeeds there is no closing message. SMS (Brevo) was replaced by this channel and is disabled.
 
 Text and bars use **plain HTML**; the contribution donut is **SVG with shapes only** (no text, to avoid breaking in email clients). The email carries no image attachment — the PNG exists only for WhatsApp, which does not render HTML.
 
@@ -48,7 +48,7 @@ Edit `evo_config.json` at the project root (same folder as the scripts). This fi
 | `dns`, `login`, `senha` | Global EVO credentials |
 | `filiais` | Branch list (`id_filial`, `nome`, `colaboradores`, optional `meta_mes`) |
 | `email` | Sender, recipient, CC, and SMTP |
-| `whatsapp` | Local API + JID list (one message per branch + summary) |
+| `whatsapp` | Local API + JID list (one message per branch, with the report image) |
 | `sms` | Brevo API + phone list. Replaced by WhatsApp, disabled |
 
 **Warning:** `evo_config.json` contains password and SMTP credentials in plain text. Do not share or publish this file. Details in [docs/en/configuration.md](docs/en/configuration.md).

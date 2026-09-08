@@ -11,8 +11,8 @@ Automação em Python que gera o relatório de vendas por colaborador no sistema
 3. Busca vendas de **ontem** e do **mês até ontem** para os colaboradores da filial.
 4. Gera um `.txt` e um `.csv` por filial em `relatorios/`.
 5. Envia um e-mail HTML responsivo por filial (gráficos de contribuição e meta), se `email.ativo` estiver `true`.
-6. Notifica cada filial por WhatsApp (API local), anexando o mesmo relatório renderizado em PNG sem o gráfico circular, se `whatsapp.ativo` estiver `true`.
-7. Ao final do lote, envia um resumo por WhatsApp só com texto. O SMS (Brevo) foi substituído por esse canal e está desligado.
+6. Notifica cada filial por WhatsApp (API local), anexando o mesmo relatório renderizado em PNG sem o gráfico circular, se `whatsapp.ativo` estiver `true`. A mensagem é só o título — os números estão na imagem.
+7. Se alguma filial falhar, manda um aviso por WhatsApp ao final do lote. Dando tudo certo, não há mensagem de fechamento. O SMS (Brevo) foi substituído por esse canal e está desligado.
 
 Textos e barras usam **HTML puro**; o donut de contribuição é **SVG só com formas** (sem texto, para não quebrar em clientes de e-mail). O e-mail não leva anexo de imagem — o PNG existe só para o WhatsApp, que não renderiza HTML.
 
@@ -48,7 +48,7 @@ Edite `evo_config.json` na raiz do projeto (mesma pasta dos scripts). Esse arqui
 | `dns`, `login`, `senha` | Credenciais globais do EVO |
 | `filiais` | Lista de filiais (`id_filial`, `nome`, `colaboradores`, `meta_mes` opcional) |
 | `email` | Remetente, destinatário, CC e SMTP |
-| `whatsapp` | API local + lista de JIDs (uma mensagem por filial + resumo) |
+| `whatsapp` | API local + lista de JIDs (uma mensagem por filial, com a imagem) |
 | `sms` | API Brevo + lista de celulares. Substituído pelo WhatsApp, desligado |
 
 **Atenção:** `evo_config.json` contém senha e credenciais SMTP em texto puro. Não compartilhe nem publique esse arquivo. Detalhes em [docs/pt/configuracao.md](docs/pt/configuracao.md).

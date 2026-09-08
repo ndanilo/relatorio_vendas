@@ -4,12 +4,14 @@
 Notificacao dos relatorios via WhatsApp, usando a API local de notificacoes.
 
 Sao dois tipos de mensagem:
-  1) Uma por filial, com o texto formatado e o relatorio em PNG anexado.
-  2) Um resumo unico ao final do lote, so texto.
+  1) Uma por filial: o relatorio em PNG, com o titulo como legenda. Os
+     numeros ficam so na imagem, para nao repetir tudo em texto.
+  2) Um alerta ao final do lote, so texto, e SO quando alguma filial falha.
+     No caminho feliz nada e enviado alem das imagens.
 
-O PNG e o proprio HTML do e-mail gerado sem o grafico circular
-(montar_email_html(..., incluir_donut=False)), renderizado no Chromium via
-Playwright. Assim a imagem nunca diverge do e-mail.
+O PNG e o proprio HTML do e-mail renderizado no Chromium via Playwright,
+sem o grafico circular e sem o rodape que cita os anexos. Assim a imagem
+nunca diverge do e-mail.
 
 Playwright e opcional: se nao estiver instalado, ou se a renderizacao
 falhar, a mensagem sai apenas com o texto e o job segue.
@@ -25,16 +27,6 @@ import urllib.error
 import urllib.request
 import uuid
 from pathlib import Path
-
-from email_relatorio import formatar_moeda, resumir
-
-# Medalhas para o ranking; do 4o colaborador em diante usa um marcador neutro.
-MEDALHAS = ("\U0001F947", "\U0001F948", "\U0001F949")
-MARCADOR_PADRAO = "\u25AB\uFE0F"
-
-BARRA_CHEIA = "\u2593"
-BARRA_VAZIA = "\u2591"
-BARRA_BLOCOS = 10
 
 
 class WhatsAppError(RuntimeError):
@@ -230,17 +222,6 @@ def enviar_whatsapp(config, mensagem, imagem=None, dry_run=False):
 # ----------------------------------------------------------------------
 # Mensagens (formatacao WhatsApp: *negrito*, _italico_, sem markdown)
 # ----------------------------------------------------------------------
-def _plural_vendas(qtd):
-    return "1 venda" if qtd == 1 else f"{qtd} vendas"
-
-
-def _barra_texto(percentual):
-    """Substitui a barra de progresso do e-mail, que nao existe em texto."""
-    limitado = min(max(percentual, 0), 100)
-    cheios = int(round(limitado / 100 * BARRA_BLOCOS))
-    return BARRA_CHEIA * cheios + BARRA_VAZIA * (BARRA_BLOCOS - cheios)
-
-
 def _marca(config):
     marca = (config.get("dns") or "").strip()
     if not marca:
@@ -248,104 +229,20 @@ def _marca(config):
     return marca[:1].upper() + marca[1:].lower()
 
 
-def montar_mensagem_filial(
-    nome_filial,
-    colaboradores_resultados,
-    totais,
-    ontem_str,
-    periodo_inicio_str,
-    meta_mes=None,
-    email_enviado=False,
-):
-    """Texto da mensagem por filial (a imagem anexa traz o relatorio completo).
+def montar_mensagem_filial(nome_filial, ontem_str):
+    """Legenda da imagem: so o titulo. Os numeros ja estao no PNG anexo."""
+    return f"*RELATÓRIO DE VENDAS*\n\U0001F4CD _{nome_filial}_ · {ontem_str}"
 
-    Os numeros aparecem aqui de proposito: e o texto que abre na previa da
-    notificacao, que fica pesquisavel no historico e que sobra sozinho se a
-    renderizacao do PNG falhar.
-    """
-    qtd_ontem, total_ontem = resumir(totais["registros_ontem"])
-    qtd_mes, total_mes = resumir(totais["registros_mes"])
 
+def montar_mensagem_falhas(config, ontem_str, falhas):
+    """Alerta de fim de lote. So existe quando alguma filial falha."""
     linhas = [
-        "*RELATÓRIO DE VENDAS*",
-        f"\U0001F4CD _{nome_filial}_ · {ontem_str}",
+        f"\u26A0\uFE0F *Relatórios de Vendas — {_marca(config)} — {ontem_str}*",
         "",
-        f"*Ontem:* {formatar_moeda(total_ontem)} _({_plural_vendas(qtd_ontem)})_",
-        f"*Mês ({periodo_inicio_str} a {ontem_str}):* "
-        f"{formatar_moeda(total_mes)} _({_plural_vendas(qtd_mes)})_",
+        "Estas filiais não foram enviadas:",
     ]
-
-    if meta_mes and meta_mes > 0:
-        percentual = total_mes / meta_mes * 100
-        falta = max(meta_mes - total_mes, 0)
-        detalhe = (
-            "meta atingida!" if falta <= 0 else f"faltam {formatar_moeda(falta)}"
-        )
-        linhas.append("")
-        linhas.append(
-            f"\U0001F3AF *Meta:* {percentual:.1f}% de {formatar_moeda(meta_mes)}"
-        )
-        linhas.append(f"{_barra_texto(percentual)} {detalhe}")
-
-    participacoes = []
-    for resultado in colaboradores_resultados:
-        _, total = resumir(resultado["registros_mes"])
-        participacoes.append((resultado["nome"], total))
-    participacoes.sort(key=lambda item: item[1], reverse=True)
-
-    if participacoes:
-        linhas.append("")
-        linhas.append("*Contribuição no mês*")
-        for indice, (nome, total) in enumerate(participacoes):
-            percentual = (total / total_mes * 100) if total_mes else 0.0
-            marcador = (
-                MEDALHAS[indice] if indice < len(MEDALHAS) else MARCADOR_PADRAO
-            )
-            linhas.append(
-                f"{marcador} {nome} — {formatar_moeda(total)} _({percentual:.1f}%)_"
-            )
-
-    linhas.append("")
-    if email_enviado:
-        linhas.append(
-            "\U0001F4CE Detalhe na imagem; .txt e .csv foram por e-mail."
-        )
-    else:
-        linhas.append("\U0001F4CE Detalhe completo na imagem em anexo.")
-
-    return "\n".join(linhas)
-
-
-def montar_mensagem_resumo(
-    config, ontem_str, filiais_ok, falhas=None, email_enviado=True
-):
-    """Resumo unico do lote, sem anexo."""
-    falhas = falhas or []
-    total = len(filiais_ok) + len(falhas)
-    icone = "\u274C" if not filiais_ok else ("\u2705" if not falhas else "\u26A0\uFE0F")
-
-    linhas = [
-        f"{icone} *Relatórios de Vendas — {_marca(config)} — {ontem_str}*",
-        "",
-        f"{len(filiais_ok)} de {total} filiais processadas:",
-    ]
-    for nome in filiais_ok:
-        linhas.append(f"• {nome}")
-
-    if falhas:
-        linhas.append("")
-        linhas.append("*Falhas:*")
-        for nome, motivo in falhas:
-            linhas.append(f"• {nome} — {motivo}")
-
-    linhas.append("")
-    if email_enviado:
-        linhas.append(
-            "\U0001F4E7 Enviados por e-mail. Confira a caixa de entrada."
-        )
-    else:
-        linhas.append("\U0001F4C4 Arquivos .txt e .csv gerados localmente.")
-
+    for nome, motivo in falhas:
+        linhas.append(f"• {nome} — {motivo}")
     return "\n".join(linhas)
 
 
@@ -353,33 +250,14 @@ def montar_mensagem_resumo(
 # Atalhos usados pelos scripts
 # ----------------------------------------------------------------------
 def notificar_whatsapp_filial(
-    config,
-    nome_filial,
-    colaboradores_resultados,
-    totais,
-    ontem_str,
-    periodo_inicio_str,
-    meta_mes=None,
-    email_enviado=False,
-    imagem=None,
-    dry_run=False,
+    config, nome_filial, ontem_str, imagem=None, dry_run=False
 ):
-    mensagem = montar_mensagem_filial(
-        nome_filial,
-        colaboradores_resultados,
-        totais,
-        ontem_str,
-        periodo_inicio_str,
-        meta_mes=meta_mes,
-        email_enviado=email_enviado,
-    )
+    mensagem = montar_mensagem_filial(nome_filial, ontem_str)
     return enviar_whatsapp(config, mensagem, imagem=imagem, dry_run=dry_run)
 
 
-def notificar_whatsapp_resumo(
-    config, ontem_str, filiais_ok, falhas=None, email_enviado=True, dry_run=False
-):
-    mensagem = montar_mensagem_resumo(
-        config, ontem_str, filiais_ok, falhas=falhas, email_enviado=email_enviado
-    )
+def notificar_whatsapp_falhas(config, ontem_str, falhas, dry_run=False):
+    if not falhas:
+        return False
+    mensagem = montar_mensagem_falhas(config, ontem_str, falhas)
     return enviar_whatsapp(config, mensagem, dry_run=dry_run)

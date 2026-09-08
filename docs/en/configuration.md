@@ -73,7 +73,7 @@ Login, DNS, and email are **global**. Branches and employees live under `filiais
 | `dns` | EVO tenant (e.g. `minha-academia`) |
 | `login` / `senha` | Profile credentials (same for all branches) |
 | `email` | Sender, recipient, CC, and SMTP (same for all branches) |
-| `whatsapp` | Local API notification: one per branch (with image) + final summary |
+| `whatsapp` | Local API notification: one per branch, with the report as an image |
 | `sms` | Brevo notification. Replaced by WhatsApp; kept disabled |
 
 ## Branches
@@ -131,10 +131,19 @@ The primary notification channel. Two different kinds of message:
 
 | When | Content |
 |------|---------|
-| One **per branch**, right after the email | Text with that branch's numbers + the report attached as PNG |
-| One **summary** at the end of the batch | Text only: which branches were processed and what failed |
+| One **per branch**, right after the email | The report as a PNG, with the title as caption |
+| One **alert** at the end of the batch, only if something fails | Text only: which branches were not sent and why |
 
-The PNG is the same email report rendered in Chromium, **without the donut chart** — the donut carries no labels (so it does not break in email clients) and would be unreadable on its own outside the HTML. Everything else is included: header, KPIs, goal, contribution, and yesterday's detail.
+On the happy path only the per-branch messages go out — there is no closing summary, since the images already say everything.
+
+The image caption is deliberately short — the numbers are already in the PNG, so there is no point repeating them as text:
+
+```
+*RELATÓRIO DE VENDAS*
+📍 _Anacã Música_ · 07/09/2026
+```
+
+The PNG is the same email report rendered in Chromium, with two differences: **no donut chart** (it carries no labels, so it does not break in email clients, and would be unreadable on its own outside the HTML) and **no attachment notice** in the footer, since `.txt` and `.csv` do not travel with the image. Everything else is included: header, KPIs, goal, contribution, and yesterday's detail.
 
 | Field | Description |
 |-------|-------------|

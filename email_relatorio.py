@@ -357,11 +357,13 @@ def montar_email_html(
     periodo_inicio_str,
     meta_mes=None,
     incluir_donut=True,
+    incluir_rodape_anexos=True,
 ):
     """Retorna o corpo HTML completo do e-mail (graficos SVG inline + HTML).
 
-    incluir_donut=False devolve o mesmo relatorio sem o grafico circular.
-    E essa versao que vira PNG no anexo do WhatsApp.
+    A versao que vira PNG no WhatsApp usa incluir_donut=False (o donut nao
+    tem rotulo e fica ilegivel fora do HTML) e incluir_rodape_anexos=False
+    (nao ha .txt/.csv junto da imagem).
     """
     _, total_ontem = resumir(totais["registros_ontem"])
     qtd_ontem, _ = resumir(totais["registros_ontem"])
@@ -442,11 +444,13 @@ def montar_email_html(
             _secao_colaborador(resultado, indice, ontem_str, periodo_label)
         )
 
+    rodape = "Relatório automático do sistema EVO."
+    if incluir_rodape_anexos:
+        rodape += " Os arquivos .txt e .csv estão anexados a este e-mail."
     partes.append(
         '<tr><td style="padding:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;'
         f'font-size:11px;color:{COR_SUAVE};line-height:1.5;">'
-        "Relatório automático do sistema EVO. "
-        "Os arquivos .txt e .csv estão anexados a este e-mail.</td></tr>"
+        f"{escapar(rodape)}</td></tr>"
     )
 
     html = (

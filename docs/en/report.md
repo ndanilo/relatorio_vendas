@@ -54,9 +54,14 @@ Failed scenarios are retried (default: 3 attempts). Screenshots go to `test_graf
 
 ## WhatsApp image (PNG)
 
-WhatsApp does not render HTML, so the notification carries the report as an image. The PNG is the **same email HTML**, produced by `montar_email_html(..., incluir_donut=False)` and screenshotted in Chromium — there is no second layout builder, so the image can never drift from the email.
+WhatsApp does not render HTML, so the notification carries the report as an image. The PNG is the **same email HTML**, produced by `montar_email_html(..., incluir_donut=False, incluir_rodape_anexos=False)` and screenshotted in Chromium — there is no second layout builder, so the image can never drift from the email.
 
-The only difference is the donut, which is dropped. It is drawn with no labels at all (see above), which works inside the email where the HTML ranking sits right below it, but not alone in an image. Everything else stays: header, cards, goal, month total, ranking, and yesterday's detail.
+There are only two differences:
+
+- **No donut.** It is drawn with no labels at all (see above), which works inside the email where the HTML ranking sits right below it, but not alone in an image.
+- **No attachment notice** in the footer, which reads only `Relatório automático do sistema EVO.` — the `.txt` and `.csv` do not travel with the image.
+
+Everything else stays: header, cards, goal, month total, ranking, and yesterday's detail. The message carrying the PNG is just the title, since the numbers are in the image itself.
 
 | Item | Value |
 |------|-------|

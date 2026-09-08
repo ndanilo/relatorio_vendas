@@ -54,9 +54,14 @@ Os cenários que falharem são repetidos (padrão: 3 tentativas). Screenshots fi
 
 ## Imagem do WhatsApp (PNG)
 
-O WhatsApp não renderiza HTML, então a notificação leva o relatório como imagem. O PNG é o **mesmo HTML do e-mail**, gerado por `montar_email_html(..., incluir_donut=False)` e fotografado no Chromium — não existe um segundo montador de layout, então a imagem nunca diverge do e-mail.
+O WhatsApp não renderiza HTML, então a notificação leva o relatório como imagem. O PNG é o **mesmo HTML do e-mail**, gerado por `montar_email_html(..., incluir_donut=False, incluir_rodape_anexos=False)` e fotografado no Chromium — não existe um segundo montador de layout, então a imagem nunca diverge do e-mail.
 
-A única diferença é o donut, que sai. Ele é desenhado sem rótulo nenhum (ver acima), o que faz sentido dentro do e-mail, onde o ranking em HTML fica logo abaixo, mas não isolado numa imagem. Todo o resto continua: cabeçalho, cartões, meta, total do mês, ranking e o detalhe de ontem.
+São só duas diferenças:
+
+- **Sem o donut.** Ele é desenhado sem rótulo nenhum (ver acima), o que faz sentido dentro do e-mail, onde o ranking em HTML fica logo abaixo, mas não isolado numa imagem.
+- **Sem a menção aos anexos** no rodapé, que fica só em `Relatório automático do sistema EVO.` — o `.txt` e o `.csv` não acompanham a imagem.
+
+Todo o resto continua: cabeçalho, cartões, meta, total do mês, ranking e o detalhe de ontem. A mensagem que acompanha o PNG é só o título, já que os números estão na própria imagem.
 
 | Item | Valor |
 |------|-------|

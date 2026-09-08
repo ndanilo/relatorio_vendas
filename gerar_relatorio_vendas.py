@@ -28,8 +28,8 @@ Como funciona (resumo tecnico):
        responsivo (graficos SVG inline + tabelas) e texto puro como
        alternativa. O assunto inclui o nome da filial.
     4) Notifica cada filial por WhatsApp (API local), anexando o mesmo
-       relatorio renderizado em PNG sem o grafico circular. Ao final do
-       lote sai um resumo unico, so texto.
+       relatorio renderizado em PNG sem o grafico circular. Nao ha resumo
+       no fim do lote - so um alerta quando alguma filial falha.
 
 O e-mail nao leva anexo de imagem: os graficos vao dentro do proprio HTML,
 entao aparecem mesmo quando o cliente bloqueia imagens externas. O PNG
@@ -54,7 +54,6 @@ from notificacao_whatsapp import (
     WhatsAppError,
     gerar_imagem_relatorio,
     notificar_whatsapp_filial,
-    notificar_whatsapp_resumo,
     whatsapp_ativo,
 )
 
@@ -710,8 +709,9 @@ def processar_filial(
 
     if not sem_whatsapp and (whatsapp_ativo(config) or dry_run):
         print("\n  Notificando por WhatsApp...")
-        # Mesmo relatorio do e-mail, so que sem o grafico circular: e essa
-        # versao que vira PNG, porque o WhatsApp nao renderiza HTML.
+        # Mesmo relatorio do e-mail, sem o grafico circular e sem o rodape
+        # dos anexos: e essa versao que vira PNG, porque o WhatsApp nao
+        # renderiza HTML.
         imagem = gerar_imagem_relatorio(
             montar_email_html(
                 nome_filial,
@@ -721,6 +721,7 @@ def processar_filial(
                 periodo_inicio_str,
                 meta_mes=meta_mes,
                 incluir_donut=False,
+                incluir_rodape_anexos=False,
             ),
             OUTPUT_DIR / f"whatsapp_{slug}_{data_arquivo}.png",
             config,
@@ -728,16 +729,7 @@ def processar_filial(
         if imagem:
             print(f"  Imagem do relatorio: {imagem}")
         notificar_whatsapp_filial(
-            config,
-            nome_filial,
-            colaboradores_resultados,
-            totais,
-            ontem_str,
-            periodo_inicio_str,
-            meta_mes=meta_mes,
-            email_enviado=email_enviado,
-            imagem=imagem,
-            dry_run=dry_run,
+            config, nome_filial, ontem_str, imagem=imagem, dry_run=dry_run
         )
 
     return {"nome": nome_filial, "email_enviado": email_enviado}
@@ -776,8 +768,8 @@ def parse_args(argv=None):
         "--sem-sms",
         dest="sem_resumo",
         action="store_true",
-        help="Nao envia a notificacao de fim de lote (SMS e resumo por "
-        "WhatsApp). Usado pelo orquestrador, que notifica uma vez.",
+        help="Nao envia a notificacao de fim de lote. Usado pelo "
+        "orquestrador, que notifica uma vez.",
     )
     parser.add_argument(
         "--sem-whatsapp",
@@ -833,19 +825,10 @@ def main(argv=None):
         if resultado["email_enviado"]:
             emails_enviados += 1
 
-    if args.sem_resumo or not processadas:
-        return
-
-    ontem_str = periodos["ontem_str"]
-    if emails_enviados and not args.dry_run:
-        notificar_sms_resumo(config, ontem_str)
-    notificar_whatsapp_resumo(
-        config,
-        ontem_str,
-        processadas,
-        email_enviado=bool(emails_enviados),
-        dry_run=args.dry_run,
-    )
+    # No caminho feliz nao ha notificacao de fim de lote: cada filial ja
+    # mandou a propria imagem por WhatsApp. Sobra o SMS, hoje desligado.
+    if emails_enviados and not args.sem_resumo and not args.dry_run:
+        notificar_sms_resumo(config, periodos["ontem_str"])
 
 
 if __name__ == "__main__":
