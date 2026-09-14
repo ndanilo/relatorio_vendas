@@ -35,6 +35,8 @@ from email_relatorio import (
     COR_TINTA,
     cor_colaborador,
     formatar_moeda,
+    formatar_moeda_opcional,
+    formatar_percentual,
     resumir,
 )
 
@@ -182,16 +184,12 @@ class _Tela:
 # ----------------------------------------------------------------------
 # Blocos (cada funcao recebe o y do topo e devolve o y de baixo)
 # ----------------------------------------------------------------------
-def _cabecalho(tela, y, largura, nome_filial, ontem_str, periodo_label):
-    tela.texto_espacado(
-        MARGEM, y, "RELATÓRIO DE VENDAS", 11, COR_DESTAQUE, 1.4, negrito=True
-    )
+def _cabecalho(tela, y, titulo, nome_filial, subtitulo):
+    tela.texto_espacado(MARGEM, y, titulo, 11, COR_DESTAQUE, 1.4, negrito=True)
     y += 18
     tela.texto(MARGEM, y, nome_filial, 24, COR_TINTA, negrito=True)
     y += 34
-    tela.texto(
-        MARGEM, y, f"Ontem: {ontem_str} · {periodo_label}", 13, COR_SUAVE
-    )
+    tela.texto(MARGEM, y, subtitulo, 13, COR_SUAVE)
     y += 19
     tela.texto(
         MARGEM,
@@ -252,8 +250,12 @@ def _bloco_meta(tela, y, largura, total_mes, meta_mes):
         "Meta atingida" if falta <= 0 else f"Faltam {formatar_moeda(falta)}",
         cor,
     )
-    y += 12
+    return _barra_meta(tela, y + 12, largura, total_mes, meta_mes)
 
+
+def _barra_meta(tela, y, largura, total_mes, meta_mes):
+    """So o cartao da barra de progresso (o relatorio de metas usa apenas ele)."""
+    percentual = total_mes / meta_mes * 100
     cor_barra = COR_POSITIVO if percentual >= 100 else COR_DESTAQUE
     altura = 74
     tela.cartao(MARGEM, y, largura, altura)
@@ -457,7 +459,13 @@ def _desenhar(
     periodo_label = f"Mês ({periodo_inicio_str} a {ontem_str})"
 
     y = PADDING
-    y = _cabecalho(tela, y, largura_conteudo, nome_filial, ontem_str, periodo_label)
+    y = _cabecalho(
+        tela,
+        y,
+        "RELATÓRIO DE VENDAS",
+        nome_filial,
+        f"Ontem: {ontem_str} · {periodo_label}",
+    )
     y = _bloco_kpis(
         tela, y, largura_conteudo, total_ontem, qtd_ontem, total_mes, qtd_mes
     )
@@ -495,27 +503,202 @@ def gerar_png(
     escala=2,
 ):
     """Desenha o relatorio e salva o PNG. Retorna o Path do arquivo."""
-    largura_conteudo = largura - 2 * MARGEM
-    argumentos = (
-        largura_conteudo,
-        nome_filial,
-        colaboradores_resultados,
-        totais,
-        ontem_str,
-        periodo_inicio_str,
-        meta_mes,
+    return _salvar(
+        destino,
+        _desenhar,
+        (
+            nome_filial,
+            colaboradores_resultados,
+            totais,
+            ontem_str,
+            periodo_inicio_str,
+            meta_mes,
+        ),
+        largura,
+        escala,
     )
 
-    altura = _desenhar(_Tela(escala), *argumentos)
+
+def _salvar(destino, desenhar, argumentos, largura, escala):
+    """Mede a altura com uma tela sem tinta e repinta na imagem do tamanho exato."""
+    argumentos = (largura - 2 * MARGEM,) + tuple(argumentos)
+
+    altura = desenhar(_Tela(escala), *argumentos)
 
     imagem = Image.new(
         "RGB",
         (int(round(largura * escala)), int(round(altura * escala))),
         COR_FUNDO,
     )
-    _desenhar(_Tela(escala, ImageDraw.Draw(imagem)), *argumentos)
+    desenhar(_Tela(escala, ImageDraw.Draw(imagem)), *argumentos)
 
     destino = Path(destino)
     destino.parent.mkdir(parents=True, exist_ok=True)
     imagem.save(destino, format="PNG", optimize=True)
     return destino
+
+
+# ----------------------------------------------------------------------
+# Relatorio de metas por consultor
+# ----------------------------------------------------------------------
+# Espelha email_relatorio.montar_email_metas_html: mesmos cartoes, mesmo selo
+# de status e o mesmo rodape de dias uteis.
+ALTURA_LINHA_METRICA = 38
+
+
+def _quebrar(tela, texto, tamanho, largura_max):
+    """Quebra o texto em linhas que cabem na largura (o Pillow nao faz isso)."""
+    linhas = []
+    atual = ""
+    for palavra in texto.split():
+        tentativa = f"{atual} {palavra}".strip()
+        if atual and tela.largura(tentativa, tamanho) > largura_max:
+            linhas.append(atual)
+            atual = palavra
+        else:
+            atual = tentativa
+    if atual:
+        linhas.append(atual)
+    return linhas
+
+
+def _metrica(tela, x, y, rotulo, valor, cor):
+    tela.texto_espacado(x, y, rotulo.upper(), 10, COR_SUAVE, 0.7)
+    tela.texto(x, y + 15, valor, 15, cor, negrito=True)
+
+
+def _cartao_meta(tela, y, largura, linha):
+    status = linha["status"]
+    interno = MARGEM + 18
+    util = largura - 36
+    coluna = util / 2
+    tem_barra = linha["percentual"] is not None
+
+    altura = 16 + 22 + (18 if tem_barra else 0) + 3 * ALTURA_LINHA_METRICA + 8
+    # Faixa lateral na cor do status, nao na cor do colaborador: aqui nao ha
+    # donut para casar a cor, e faixa verde em cartao "ABAIXO DA META" mentiria.
+    tela.cartao(MARGEM, y, largura, altura, cor_faixa=status["cor"])
+
+    tela.texto(interno, y + 16, linha["nome"], 15, COR_TINTA, negrito=True)
+    tela.texto(
+        interno + util,
+        y + 19,
+        f"{status['marcador']} {status['rotulo']}",
+        11,
+        status["cor"],
+        negrito=True,
+        ancora="ra",
+    )
+
+    linha_y = y + 38
+    if tem_barra:
+        tela.barra(interno, linha_y, util, min(linha["percentual"], 100), status["cor"])
+        linha_y += 18
+
+    pares = [
+        (
+            ("Meta", formatar_moeda(linha["meta"]), COR_TINTA),
+            ("Realizado", formatar_moeda(linha["realizado"]), COR_DESTAQUE),
+        ),
+        (
+            ("Projeção", formatar_moeda_opcional(linha["projecao"]), status["cor"]),
+            ("% da meta", formatar_percentual(linha["percentual"]), status["cor"]),
+        ),
+        (
+            ("Falta", formatar_moeda(linha["falta"]), COR_TINTA),
+            ("Por dia útil", formatar_moeda_opcional(linha["por_dia"]), COR_TINTA),
+        ),
+    ]
+    for esquerda, direita in pares:
+        _metrica(tela, interno, linha_y, *esquerda)
+        _metrica(tela, interno + coluna, linha_y, *direita)
+        linha_y += ALTURA_LINHA_METRICA
+
+    return y + altura + 16
+
+
+def _rodape_metas(tela, y, largura, metas):
+    notas = list(metas["rodape"])
+    if metas["sem_meta"]:
+        notas.append(
+            "Sem meta_funcionario configurada (fora deste relatório): "
+            + ", ".join(metas["sem_meta"])
+        )
+    notas.append("Relatório automático do sistema EVO.")
+
+    y += 8
+    for nota in notas:
+        for texto in _quebrar(tela, nota, 11, largura):
+            tela.texto(MARGEM, y, texto, 11, COR_SUAVE)
+            y += 16
+    return y
+
+
+def _desenhar_metas(
+    tela, largura_conteudo, nome_filial, metas, periodo_inicio_str, ontem_str
+):
+    total = metas["total"]
+    status = total["status"]
+
+    y = PADDING
+    y = _cabecalho(
+        tela,
+        y,
+        "RELATÓRIO DE METAS",
+        nome_filial,
+        f"Mês ({periodo_inicio_str} a {ontem_str})",
+    )
+
+    coluna = (largura_conteudo - ESPACO_CARTOES) / 2
+    _cartao_kpi(
+        tela,
+        MARGEM,
+        y,
+        coluna,
+        "REALIZADO NO MÊS",
+        formatar_moeda(total["realizado"]),
+        f"de {formatar_moeda(total['meta'])} em metas",
+        COR_TINTA,
+    )
+    y = _cartao_kpi(
+        tela,
+        MARGEM + coluna + ESPACO_CARTOES,
+        y,
+        coluna,
+        "PROJEÇÃO DO MÊS",
+        formatar_moeda_opcional(total["projecao"]),
+        f"{formatar_percentual(total['percentual'])} da meta · "
+        f"{status['marcador']} {status['rotulo']}",
+        status["cor"],
+    )
+    y += 16
+
+    if total["meta"] > 0:
+        y = _barra_meta(tela, y, largura_conteudo, total["realizado"], total["meta"])
+
+    y = _titulo_secao(tela, y, "Metas por consultor")
+    for linha in metas["linhas"]:
+        y = _cartao_meta(tela, y, largura_conteudo, linha)
+    y = _cartao_meta(tela, y, largura_conteudo, total)
+
+    y = _rodape_metas(tela, y, largura_conteudo, metas)
+    return y + PADDING
+
+
+def gerar_png_metas(
+    destino,
+    nome_filial,
+    metas,
+    periodo_inicio_str,
+    ontem_str,
+    largura=LARGURA_PADRAO,
+    escala=2,
+):
+    """Desenha o relatorio de metas e salva o PNG. Retorna o Path do arquivo."""
+    return _salvar(
+        destino,
+        _desenhar_metas,
+        (nome_filial, metas, periodo_inicio_str, ontem_str),
+        largura,
+        escala,
+    )

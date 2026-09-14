@@ -12,7 +12,8 @@ Python automation that generates per-employee sales reports in the EVO (W12) sys
 4. Generates a `.txt` and a `.csv` per branch in `relatorios/`.
 5. Sends a responsive HTML email per branch (contribution and goal charts), if `email.ativo` is `true`.
 6. Notifies each branch on WhatsApp (local API), attaching the same report rendered as a PNG without the donut chart, if `whatsapp.ativo` is `true`. The message is just the title — the numbers are in the image.
-7. If a branch fails, sends a WhatsApp alert at the end of the batch. When everything succeeds there is no closing message. SMS (Brevo) was replaced by this channel and is disabled.
+7. For branches with `funcionario_report_ativo`, sends a second report — **consultant goals** — to its own recipients: per-consultant goal, month-to-date, month projection, `%` of goal, shortfall, and shortfall per workday, each row flagged `▼ ABAIXO DA META` or `▲ META ATINGIDA`.
+8. If a branch fails, sends a WhatsApp alert at the end of the batch. When everything succeeds there is no closing message. SMS (Brevo) was replaced by this channel and is disabled.
 
 Text and bars use **plain HTML**; the contribution donut is **SVG with shapes only** (no text, to avoid breaking in email clients). The email carries no image attachment — the PNG exists only for WhatsApp, which does not render HTML.
 
@@ -51,9 +52,11 @@ Edit `evo_config.json` at the project root (same folder as the scripts). This fi
 | Field | Purpose |
 |-------|---------|
 | `dns`, `login`, `senha` | Global EVO credentials |
-| `filiais` | Branch list (`id_filial`, `nome`, `colaboradores`, optional `meta_mes`) |
-| `email` | Sender, recipient, CC, and SMTP |
-| `whatsapp` | Local API + JID list (one message per branch, with the report image) |
+| `filiais` | Branch list (`id_filial`, `nome`, `colaboradores`, optional `meta_mes` and `funcionario_report_ativo`) |
+| `meta_funcionario` | Per employee, inside `colaboradores`. Individual goal for the consultant goal report |
+| `email` | Sender, recipient, CC, SMTP, and `funcionario_report` recipients |
+| `whatsapp` | Local API + JID list (one message per branch, with the report image) + `funcionario_report` JIDs |
+| `dias_uteis` | Workday calendar for the projection (`peso_sabado`, `feriados_extras`) |
 | `sms` | Brevo API + phone list. Replaced by WhatsApp, disabled |
 
 **Warning:** `evo_config.json` contains password and SMTP credentials in plain text. Do not share or publish this file. Details in [docs/en/configuration.md](docs/en/configuration.md).
@@ -103,8 +106,10 @@ Generates `test_grafico_*.png` screenshots (with and without SVG) for visual ins
 |------|------|
 | `rodar_relatorios_filiais.py` | Orchestrates one call per branch (continues on error) |
 | `gerar_relatorio_vendas.py` | Login, API, files, and email delivery |
-| `email_relatorio.py` | Responsive HTML, inline SVG, and table fallback |
-| `imagem_relatorio.py` | Draws the report as a PNG with Pillow (WhatsApp attachment) |
+| `email_relatorio.py` | Responsive HTML, inline SVG, and table fallback (both reports) |
+| `imagem_relatorio.py` | Draws the reports as a PNG with Pillow (WhatsApp attachment) |
+| `metas_consultores.py` | Consultant goal math (projection, `%`, shortfall) and plain-text report |
+| `dias_uteis.py` | Brazilian workday calendar. Also runs standalone: `py dias_uteis.py 2026-09` |
 | `notificacao_whatsapp.py` | WhatsApp messages and local API call |
 | `assets/fonts/` | Versioned DejaVu Sans, used to draw the PNG |
 | `scripts/validar_graficos_email.py` | Chart validation with Playwright |
@@ -119,8 +124,8 @@ Generates `test_grafico_*.png` screenshots (with and without SVG) for visual ins
 | Document | Content |
 |----------|---------|
 | [docs/en/flow.md](docs/en/flow.md) | Human access + technical flow (URLs, tokens) |
-| [docs/en/configuration.md](docs/en/configuration.md) | `evo_config.json`, branches, employees, goal, and email |
+| [docs/en/configuration.md](docs/en/configuration.md) | `evo_config.json`, branches, employees, goals, email, and workdays |
 | [docs/en/filters-and-periods.md](docs/en/filters-and-periods.md) | API filters and date rules |
-| [docs/en/report.md](docs/en/report.md) | HTML email format, charts, and files |
+| [docs/en/report.md](docs/en/report.md) | HTML email format, charts, consultant goal report, and files |
 | [docs/en/cursor-automation.md](docs/en/cursor-automation.md) | Scheduled run via Cursor Automation |
 | [docs/en/claude-desktop-automation.md](docs/en/claude-desktop-automation.md) | Scheduled task prompt for Claude Desktop |

@@ -2,7 +2,7 @@
 
 # Report format
 
-The script generates **one report per branch** in four formats: HTML email, `.txt`, `.csv`, and a PNG for WhatsApp.
+The script generates **one sales report per branch** in four formats: HTML email, `.txt`, `.csv`, and a PNG for WhatsApp. Branches with `funcionario_report_ativo` also get a second report, the [consultant goal report](#consultant-goal-report), with its own recipients.
 
 ## Email (responsive HTML)
 
@@ -90,6 +90,73 @@ On a busy day the image exceeds a 1:3 ratio. The chat preview is cropped, but th
 
 Drawing requires Pillow, which is **optional**: without it the message goes out as text only and the job continues.
 
+## Consultant goal report
+
+A second report, generated only for branches with `funcionario_report_ativo` and sent to the recipients in `email.funcionario_report` and `whatsapp.funcionario_report` (see [configuration.md](configuration.md#consultant-goal-report)). It answers a question the sales report does not: **at the current pace, will each consultant hit their monthly goal?**
+
+It reuses the month's sales the main report already fetched — no extra EVO request.
+
+### Columns
+
+Per consultant, sorted from worst `%` to best (whoever needs attention comes first):
+
+| Column | Formula |
+|--------|---------|
+| `Meta` | `meta_funcionario` from the configuration |
+| `Realizado` | Month-to-yesterday sales |
+| `Projeção` | `realized ÷ elapsed workdays × workdays in the month` |
+| `% da meta` | `projection ÷ goal × 100` |
+| `Falta` | `max(goal − realized, 0)` |
+| `Por dia útil` | `shortfall ÷ remaining workdays` |
+
+`Falta` is clamped at zero: a consultant past the goal owes nothing, so the column never shows negative debt — and `Por dia útil` drops to zero with it.
+
+The final card carries the **branch total**. The currency columns are summed; the `%` is **not** the average of the individual percentages, it is the same formula applied to the totals (`total projection ÷ sum of goals`). Since everyone shares the same workday count, the sum of the projections equals the projection of the sum, so the total can never contradict the rows above it. The total `Falta` is the sum of the already-clamped shortfalls: someone who beat their goal does not cancel out a colleague's debt.
+
+### The `%` flag
+
+The `%` is not just a number — it becomes a flag:
+
+| Situation | Badge | Color |
+|-----------|-------|-------|
+| `%` **< 100** — will not reach the goal at the current pace | `▼ ABAIXO DA META` | Amber (the same one the sales report uses for an unmet goal) |
+| `%` **≥ 100** — reaches or beats the goal | `▲ META ATINGIDA` | Green |
+
+The marker and the uppercase label travel with the color, so the flag survives the PNG in grayscale, the `.txt`, and color-vision deficiency. The card's side stripe and the progress bar also use the status color — there is no donut here to match the employee's identity color, and a green stripe on an `ABAIXO DA META` card would contradict the badge.
+
+Watch out for one difference that looks like an inconsistency but is not: `%` compares the **projection** against the goal, while `Falta` compares the **realized** amount against the goal. A consultant can be flagged positive (on pace) and still owe a large `Falta` for the month.
+
+### Structure
+
+1. **Header** — `RELATÓRIO DE METAS`, branch, month period, and generation time  
+2. **Highlight cards** — realized this month and projected month (with the `%` and the badge)  
+3. **Goal progress** — bar of realized over the sum of the goals  
+4. **Goals per consultant** — one card per consultant + the branch total card  
+5. **Workday footer** — the metadata behind the math (see below)  
+
+### Workday footer
+
+The report closes with the three calendar figures, in small text, so every number above can be checked:
+
+```
+Dias úteis do mês: 23 · Decorridos: 9 · Restantes: 14 — sábado conta 0,5 dia.
+Projeção = realizado ÷ dias decorridos × dias úteis do mês. Falta = meta − realizado (mínimo zero). Por dia útil = falta ÷ dias restantes.
+```
+
+Elapsed days run from day 1 through **yesterday** — the same window as the sales — so elapsed + remaining = total. Weighting and holiday rules in [configuration.md](configuration.md#workdays-dias_uteis).
+
+Anyone missing `meta_funcionario` is named in the footer, so the absence is explicit instead of silent.
+
+### Formats
+
+The same formats as the sales report minus the `.csv`: HTML email (the primary version), plain text (the email alternative and the `.txt` file), and the WhatsApp PNG. Cards, palette, the 600px shell, and mobile stacking are identical — the layout is built from the same functions in `email_relatorio.py` and `imagem_relatorio.py`.
+
+Email subject:
+
+```
+Relatório de Metas - {nome da filial} - {data_de_ontem}
+```
+
 ## Generated files
 
 Outputs in `relatorios/`:
@@ -97,6 +164,8 @@ Outputs in `relatorios/`:
 - `relatorio_vendas_{slug-da-filial}_YYYY-MM-DD.txt`
 - `relatorio_vendas_{slug-da-filial}_YYYY-MM-DD.csv`
 - `whatsapp_{slug-da-filial}_YYYY-MM-DD.png` (only when WhatsApp is active)
+- `relatorio_metas_{slug-da-filial}_YYYY-MM-DD.txt` (only with `funcionario_report_ativo`)
+- `whatsapp_metas_{slug-da-filial}_YYYY-MM-DD.png` (same, plus WhatsApp active)
 
 Example: `relatorio_vendas_unidade-centro_2026-07-31.txt`
 

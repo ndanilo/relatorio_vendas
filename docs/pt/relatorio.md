@@ -2,7 +2,7 @@
 
 # Formato do relatório
 
-O script gera **um relatório por filial** em quatro formatos: e-mail HTML, `.txt`, `.csv` e um PNG para o WhatsApp.
+O script gera **um relatório de vendas por filial** em quatro formatos: e-mail HTML, `.txt`, `.csv` e um PNG para o WhatsApp. Nas filiais com `funcionario_report_ativo` sai também um segundo relatório, o [de metas por consultor](#relatório-de-metas-por-consultor), com destinatários próprios.
 
 ## E-mail (HTML responsivo)
 
@@ -90,6 +90,73 @@ Em dia cheio a imagem passa de 1:3 de proporção. A prévia no chat sai cortada
 
 Desenhar exige Pillow, que é **opcional**: sem ele a mensagem sai só com o texto e o job segue normalmente.
 
+## Relatório de metas por consultor
+
+Segundo relatório, gerado só nas filiais com `funcionario_report_ativo` e enviado para os destinatários de `email.funcionario_report` e `whatsapp.funcionario_report` (veja [configuracao.md](configuracao.md#relatório-de-metas-por-consultor)). Ele responde a uma pergunta que o relatório de vendas não responde: **no ritmo atual, cada consultor bate a meta do mês?**
+
+Reaproveita as vendas do mês que o relatório principal já buscou — não há consulta extra ao EVO.
+
+### Colunas
+
+Por consultor, ordenados do pior `%` para o melhor (quem precisa de atenção aparece primeiro):
+
+| Coluna | Fórmula |
+|--------|---------|
+| `Meta` | `meta_funcionario` da configuração |
+| `Realizado` | Vendas do mês até ontem |
+| `Projeção` | `realizado ÷ dias decorridos × dias úteis do mês` |
+| `% da meta` | `projeção ÷ meta × 100` |
+| `Falta` | `max(meta − realizado, 0)` |
+| `Por dia útil` | `falta ÷ dias úteis restantes` |
+
+`Falta` é limitada em zero: quem passou da meta não deve nada, então a coluna nunca mostra dívida negativa — e `Por dia útil` vai a zero junto.
+
+O cartão final traz o **total da filial**. As colunas em reais são somadas; o `%` **não** é a média dos percentuais individuais, é a mesma fórmula aplicada aos totais (`projeção total ÷ soma das metas`). Como todos dividem os mesmos dias úteis, a soma das projeções é igual à projeção da soma, e o total nunca contradiz as linhas acima dele. `Falta` do total é a soma das faltas já limitadas: quem bateu a meta não abate a dívida de quem está atrás.
+
+### Sinalização do `%`
+
+O `%` não é só um número — ele vira uma flag:
+
+| Situação | Selo | Cor |
+|----------|------|-----|
+| `%` **< 100** — não chega na meta no ritmo atual | `▼ ABAIXO DA META` | Âmbar (a mesma da meta não batida no relatório de vendas) |
+| `%` **≥ 100** — chega ou passa da meta | `▲ META ATINGIDA` | Verde |
+
+O marcador e o rótulo em caixa alta acompanham a cor, então a flag sobrevive ao PNG em escala de cinza, ao `.txt` e a quem não distingue as cores. A faixa lateral do cartão e a barra de progresso também usam a cor do status — aqui não há gráfico circular para casar com a cor de identidade do colaborador, e faixa verde em cartão `ABAIXO DA META` diria o contrário do selo.
+
+Atenção a uma diferença que parece inconsistência e não é: `%` compara a **projeção** com a meta, enquanto `Falta` compara o **realizado** com a meta. Um consultor pode estar sinalizado como positivo (no ritmo) e ainda ter uma `Falta` alta no mês.
+
+### Estrutura
+
+1. **Cabeçalho** — `RELATÓRIO DE METAS`, filial, período do mês e data de geração  
+2. **Cartões de destaque** — realizado no mês e projeção do mês (com o `%` e o selo)  
+3. **Progresso da meta** — barra do realizado sobre a soma das metas  
+4. **Metas por consultor** — um cartão por consultor + o cartão do total da filial  
+5. **Rodapé de dias úteis** — a metadata que sustenta a conta (veja abaixo)  
+
+### Rodapé de dias úteis
+
+O relatório fecha com as três medidas do calendário, em texto pequeno, para que qualquer número acima possa ser conferido:
+
+```
+Dias úteis do mês: 23 · Decorridos: 9 · Restantes: 14 — sábado conta 0,5 dia.
+Projeção = realizado ÷ dias decorridos × dias úteis do mês. Falta = meta − realizado (mínimo zero). Por dia útil = falta ÷ dias restantes.
+```
+
+Os decorridos vão do dia 1 até **ontem** — a mesma janela das vendas —, então decorridos + restantes = total. Regra de peso e feriados em [configuracao.md](configuracao.md#dias-úteis-dias_uteis).
+
+Quem está sem `meta_funcionario` aparece nomeado no rodapé, para a ausência ser explícita em vez de silenciosa.
+
+### Formatos
+
+Mesmos três formatos do relatório de vendas, menos o `.csv`: e-mail HTML (a versão principal), texto puro (alternativa do e-mail e arquivo `.txt`) e o PNG do WhatsApp. Cartões, paleta, casca de 600px e empilhamento no celular são os mesmos — o layout é montado com as mesmas funções de `email_relatorio.py` e `imagem_relatorio.py`.
+
+Assunto do e-mail:
+
+```
+Relatório de Metas - {nome da filial} - {data_de_ontem}
+```
+
 ## Arquivos gerados
 
 Saídas em `relatorios/`:
@@ -97,6 +164,8 @@ Saídas em `relatorios/`:
 - `relatorio_vendas_{slug-da-filial}_YYYY-MM-DD.txt`
 - `relatorio_vendas_{slug-da-filial}_YYYY-MM-DD.csv`
 - `whatsapp_{slug-da-filial}_YYYY-MM-DD.png` (só quando o WhatsApp está ativo)
+- `relatorio_metas_{slug-da-filial}_YYYY-MM-DD.txt` (só com `funcionario_report_ativo`)
+- `whatsapp_metas_{slug-da-filial}_YYYY-MM-DD.png` (idem, e com o WhatsApp ativo)
 
 Exemplo: `relatorio_vendas_unidade-centro_2026-07-31.txt`
 

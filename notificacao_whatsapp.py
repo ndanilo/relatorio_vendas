@@ -41,27 +41,20 @@ def whatsapp_ativo(config):
 # ----------------------------------------------------------------------
 # Imagem
 # ----------------------------------------------------------------------
-def gerar_imagem_relatorio(
-    config,
-    destino,
-    nome_filial,
-    colaboradores_resultados,
-    totais,
-    ontem_str,
-    periodo_inicio_str,
-    meta_mes=None,
-):
-    """Desenha o PNG do relatorio aplicando os ajustes do evo_config.json.
+def _gerar_imagem(config, destino, desenhista, *args, **kwargs):
+    """Desenha um PNG com `desenhista` (nome de uma funcao de imagem_relatorio).
 
-    Retorna o Path do arquivo, ou None se o anexo estiver desligado ou o
-    desenho falhar - nesse caso a mensagem sai so com o texto e o job segue.
+    Retorna o Path do arquivo, ou None se o anexo estiver desligado, o Pillow
+    faltar ou o desenho falhar - nesses casos a mensagem sai so com o texto e
+    o job segue.
     """
     cfg = _cfg(config)
     if not cfg.get("anexar_imagem", True):
         return None
 
     try:
-        from imagem_relatorio import gerar_png
+        # Import tardio: sem Pillow o modulo nem carrega, e a imagem e opcional.
+        import imagem_relatorio
     except ImportError as exc:
         print(
             f"[AVISO] Nao consegui carregar o desenhista do relatorio ({exc}); "
@@ -72,16 +65,12 @@ def gerar_imagem_relatorio(
         return None
 
     try:
-        return gerar_png(
+        return getattr(imagem_relatorio, desenhista)(
             destino,
-            nome_filial,
-            colaboradores_resultados,
-            totais,
-            ontem_str,
-            periodo_inicio_str,
-            meta_mes=meta_mes,
+            *args,
             largura=cfg.get("imagem_largura", 640),
             escala=cfg.get("imagem_escala", 2),
+            **kwargs,
         )
     except Exception as exc:  # noqa: BLE001 - imagem e opcional, nao derruba o job
         print(
@@ -90,6 +79,45 @@ def gerar_imagem_relatorio(
         )
         print(f"        Motivo: {' '.join(str(exc).split())[:200]}")
         return None
+
+
+def gerar_imagem_relatorio(
+    config,
+    destino,
+    nome_filial,
+    colaboradores_resultados,
+    totais,
+    ontem_str,
+    periodo_inicio_str,
+    meta_mes=None,
+):
+    """PNG do relatorio de vendas, com os ajustes do evo_config.json."""
+    return _gerar_imagem(
+        config,
+        destino,
+        "gerar_png",
+        nome_filial,
+        colaboradores_resultados,
+        totais,
+        ontem_str,
+        periodo_inicio_str,
+        meta_mes=meta_mes,
+    )
+
+
+def gerar_imagem_metas(
+    config, destino, nome_filial, metas, periodo_inicio_str, ontem_str
+):
+    """PNG do relatorio de metas por consultor."""
+    return _gerar_imagem(
+        config,
+        destino,
+        "gerar_png_metas",
+        nome_filial,
+        metas,
+        periodo_inicio_str,
+        ontem_str,
+    )
 
 
 # ----------------------------------------------------------------------
@@ -126,16 +154,18 @@ def _montar_multipart(campos, arquivo=None):
     return b"".join(partes), f"multipart/form-data; boundary={boundary}"
 
 
-def enviar_whatsapp(config, mensagem, imagem=None, dry_run=False):
+def enviar_whatsapp(config, mensagem, imagem=None, dry_run=False, destinatarios=None):
     """Envia a mensagem para cada JID em whatsapp.destinatarios.
 
+    `destinatarios` troca a lista padrao (o relatorio de metas tem a propria).
     So envia se config["whatsapp"]["ativo"] for true. Com dry_run=True
     imprime o que seria enviado e nao faz nenhuma chamada de rede.
     """
     cfg = _cfg(config)
+    if destinatarios is None:
+        destinatarios = cfg.get("destinatarios") or []
 
     if dry_run:
-        destinatarios = cfg.get("destinatarios") or []
         anexo = Path(imagem).name if imagem else "sem anexo"
         print(f"  [dry-run] Destinatarios: {', '.join(destinatarios) or '(nenhum)'}")
         print(f"  [dry-run] Anexo: {anexo}")
@@ -159,7 +189,6 @@ def enviar_whatsapp(config, mensagem, imagem=None, dry_run=False):
     if not api_key:
         raise WhatsAppError("whatsapp.api_key ausente em evo_config.json.")
 
-    destinatarios = cfg.get("destinatarios") or []
     if not destinatarios:
         print("Nenhum destinatario em whatsapp.destinatarios; pulando envio.")
         return False
@@ -228,6 +257,10 @@ def montar_mensagem_filial(nome_filial, ontem_str):
     return f"*RELATÓRIO DE VENDAS*\n\U0001F4CD _{nome_filial}_ · {ontem_str}"
 
 
+def montar_mensagem_metas(nome_filial, ontem_str):
+    return f"*RELATÓRIO DE METAS*\n\U0001F4CA _{nome_filial}_ · {ontem_str}"
+
+
 def montar_mensagem_falhas(config, ontem_str, falhas):
     """Alerta de fim de lote. So existe quando alguma filial falha."""
     linhas = [
@@ -248,6 +281,33 @@ def notificar_whatsapp_filial(
 ):
     mensagem = montar_mensagem_filial(nome_filial, ontem_str)
     return enviar_whatsapp(config, mensagem, imagem=imagem, dry_run=dry_run)
+
+
+def notificar_whatsapp_metas(
+    config, nome_filial, ontem_str, imagem=None, dry_run=False
+):
+    """Notifica o relatorio de metas em whatsapp.funcionario_report.destinatarios.
+
+    Sem essa lista nada e enviado: metas por consultor sao dado sensivel e nao
+    caem no grupo geral por acidente.
+    """
+    destinatarios = (
+        (_cfg(config).get("funcionario_report") or {}).get("destinatarios") or []
+    )
+    if not destinatarios:
+        print(
+            "Nenhum destinatario em whatsapp.funcionario_report.destinatarios; "
+            "relatorio de metas nao notificado por WhatsApp."
+        )
+        return False
+
+    return enviar_whatsapp(
+        config,
+        montar_mensagem_metas(nome_filial, ontem_str),
+        imagem=imagem,
+        dry_run=dry_run,
+        destinatarios=destinatarios,
+    )
 
 
 def notificar_whatsapp_falhas(config, ontem_str, falhas, dry_run=False):

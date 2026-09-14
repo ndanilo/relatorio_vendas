@@ -12,7 +12,8 @@ Automação em Python que gera o relatório de vendas por colaborador no sistema
 4. Gera um `.txt` e um `.csv` por filial em `relatorios/`.
 5. Envia um e-mail HTML responsivo por filial (gráficos de contribuição e meta), se `email.ativo` estiver `true`.
 6. Notifica cada filial por WhatsApp (API local), anexando o mesmo relatório renderizado em PNG sem o gráfico circular, se `whatsapp.ativo` estiver `true`. A mensagem é só o título — os números estão na imagem.
-7. Se alguma filial falhar, manda um aviso por WhatsApp ao final do lote. Dando tudo certo, não há mensagem de fechamento. O SMS (Brevo) foi substituído por esse canal e está desligado.
+7. Nas filiais com `funcionario_report_ativo`, envia um segundo relatório — **metas por consultor** — para destinatários próprios: meta individual, realizado no mês, projeção do mês, `%` da meta, quanto falta e falta por dia útil, cada linha sinalizada com `▼ ABAIXO DA META` ou `▲ META ATINGIDA`.
+8. Se alguma filial falhar, manda um aviso por WhatsApp ao final do lote. Dando tudo certo, não há mensagem de fechamento. O SMS (Brevo) foi substituído por esse canal e está desligado.
 
 Textos e barras usam **HTML puro**; o donut de contribuição é **SVG só com formas** (sem texto, para não quebrar em clientes de e-mail). O e-mail não leva anexo de imagem — o PNG existe só para o WhatsApp, que não renderiza HTML.
 
@@ -51,9 +52,11 @@ Edite `evo_config.json` na raiz do projeto (mesma pasta dos scripts). Esse arqui
 | Campo | Uso |
 |-------|-----|
 | `dns`, `login`, `senha` | Credenciais globais do EVO |
-| `filiais` | Lista de filiais (`id_filial`, `nome`, `colaboradores`, `meta_mes` opcional) |
-| `email` | Remetente, destinatário, CC e SMTP |
-| `whatsapp` | API local + lista de JIDs (uma mensagem por filial, com a imagem) |
+| `filiais` | Lista de filiais (`id_filial`, `nome`, `colaboradores`, `meta_mes` e `funcionario_report_ativo` opcionais) |
+| `meta_funcionario` | Por colaborador, dentro de `colaboradores`. Meta individual do relatório de metas |
+| `email` | Remetente, destinatário, CC, SMTP e os destinatários de `funcionario_report` |
+| `whatsapp` | API local + lista de JIDs (uma mensagem por filial, com a imagem) + JIDs de `funcionario_report` |
+| `dias_uteis` | Calendário de dias úteis da projeção (`peso_sabado`, `feriados_extras`) |
 | `sms` | API Brevo + lista de celulares. Substituído pelo WhatsApp, desligado |
 
 **Atenção:** `evo_config.json` contém senha e credenciais SMTP em texto puro. Não compartilhe nem publique esse arquivo. Detalhes em [docs/pt/configuracao.md](docs/pt/configuracao.md).
@@ -103,8 +106,10 @@ Gera screenshots `test_grafico_*.png` (com e sem SVG) para conferência visual. 
 |---------|--------|
 | `rodar_relatorios_filiais.py` | Orquestra uma chamada por filial (continua se houver erro) |
 | `gerar_relatorio_vendas.py` | Login, API, arquivos e envio de e-mail |
-| `email_relatorio.py` | HTML responsivo, SVG inline e fallback em tabelas |
-| `imagem_relatorio.py` | Desenha o relatório em PNG com Pillow (anexo do WhatsApp) |
+| `email_relatorio.py` | HTML responsivo, SVG inline e fallback em tabelas (os dois relatórios) |
+| `imagem_relatorio.py` | Desenha os relatórios em PNG com Pillow (anexo do WhatsApp) |
+| `metas_consultores.py` | Conta das metas (projeção, `%`, falta) e o relatório em texto |
+| `dias_uteis.py` | Calendário de dias úteis do Brasil. Roda avulso: `py dias_uteis.py 2026-09` |
 | `notificacao_whatsapp.py` | Mensagens do WhatsApp e chamada da API local |
 | `assets/fonts/` | DejaVu Sans versionada, usada no desenho do PNG |
 | `scripts/validar_graficos_email.py` | Validação dos gráficos com Playwright |
@@ -119,8 +124,8 @@ Gera screenshots `test_grafico_*.png` (com e sem SVG) para conferência visual. 
 | Documento | Conteúdo |
 |-----------|----------|
 | [docs/pt/fluxo.md](docs/pt/fluxo.md) | Acesso humano + fluxo técnico (URLs, tokens) |
-| [docs/pt/configuracao.md](docs/pt/configuracao.md) | `evo_config.json`, filiais, colaboradores, meta e e-mail |
+| [docs/pt/configuracao.md](docs/pt/configuracao.md) | `evo_config.json`, filiais, colaboradores, metas, e-mail e dias úteis |
 | [docs/pt/filtros-e-periodos.md](docs/pt/filtros-e-periodos.md) | Filtros da API e regras de data |
-| [docs/pt/relatorio.md](docs/pt/relatorio.md) | Formato do e-mail HTML, gráficos e arquivos |
+| [docs/pt/relatorio.md](docs/pt/relatorio.md) | Formato do e-mail HTML, gráficos, relatório de metas e arquivos |
 | [docs/pt/cursor-automation.md](docs/pt/cursor-automation.md) | Execução agendada via Cursor Automation |
 | [docs/pt/claude-desktop-automation.md](docs/pt/claude-desktop-automation.md) | Prompt de tarefa agendada no Claude Desktop |

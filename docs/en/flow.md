@@ -79,6 +79,12 @@ The script does not use Playwright. It reproduces the browser HTTP flow with the
                                     ┌──────────────────┐
                                     │ local API        │
                                     │ /notifications   │  (WhatsApp: text + PNG)
+                                    └────────┬─────────┘
+                                             │ only if funcionario_report_ativo
+                                             ▼
+                                    ┌──────────────────┐
+                                    │ consultant goal  │
+                                    │ report           │  (email + PNG, other list)
                                     └──────────────────┘
 ```
 
@@ -147,6 +153,16 @@ After each branch email, the script draws the report as a PNG (Pillow, no HTML i
 | Fields | `to` (JID), `message` (text), `file` (PNG, optional) |
 
 There is no closing message on the happy path: if every branch succeeds, the batch ends with the images already sent. Only when a branch fails does a final text-only alert go out listing what was not sent. Pillow is optional: without it the message goes without the attachment. Configuration in [configuration.md](configuration.md).
+
+### Step 5 — Consultant goal report (optional, per branch)
+
+The last step for each branch, and only when it has `funcionario_report_ativo`. **No new EVO request**: the math runs on the month's sales Step 3 already fetched.
+
+1. `dias_uteis.calcular_dias_uteis` builds the calendar for the period's month (Monday to Friday = 1, Saturday = 0.5, holidays = 0).
+2. `metas_consultores.calcular_metas` matches each employee with their `meta_funcionario` and computes projection, `%`, shortfall, and shortfall per workday.
+3. The email goes to `email.funcionario_report.destinatarios` and the PNG to `whatsapp.funcionario_report.destinatarios` — lists separate from the sales report's, since individual goals are sensitive.
+
+Format and formulas in [report.md](report.md#consultant-goal-report).
 
 ---
 

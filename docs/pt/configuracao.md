@@ -19,9 +19,10 @@ Login, DNS e e-mail são **globais**. Filiais e colaboradores ficam em `filiais`
       "id_filial": 1,
       "nome": "Unidade Centro",
       "meta_mes": 500000,
+      "funcionario_report_ativo": true,
       "colaboradores": [
-        {"id_funcionario": 101, "nome": "Colaborador A"},
-        {"id_funcionario": 102, "nome": "Colaborador B"}
+        {"id_funcionario": 101, "nome": "Colaborador A", "meta_funcionario": 200000},
+        {"id_funcionario": 102, "nome": "Colaborador B", "meta_funcionario": 200000}
       ]
     },
     {
@@ -38,6 +39,10 @@ Login, DNS e e-mail são **globais**. Filiais e colaboradores ficam em `filiais`
     "remetente": "remetente@exemplo.com",
     "destinatario": "para@exemplo.com",
     "cc": "",
+    "funcionario_report": {
+      "destinatarios": ["gerencia@exemplo.com.br"],
+      "cc": ""
+    },
     "smtp_servidor": "smtp-relay.brevo.com",
     "smtp_porta": 587,
     "smtp_usuario": "...",
@@ -58,10 +63,18 @@ Login, DNS e e-mail são **globais**. Filiais e colaboradores ficam em `filiais`
     "url": "http://127.0.0.1:3001/notifications",
     "api_key": "...",
     "destinatarios": ["5511999999999@c.us"],
+    "funcionario_report": {
+      "destinatarios": ["5511999999999@c.us"]
+    },
     "anexar_imagem": true,
     "imagem_largura": 640,
     "imagem_escala": 2,
     "timeout": 60
+  },
+
+  "dias_uteis": {
+    "peso_sabado": 0.5,
+    "feriados_extras": ["01-25", "07-09"]
   }
 }
 ```
@@ -75,6 +88,7 @@ Login, DNS e e-mail são **globais**. Filiais e colaboradores ficam em `filiais`
 | `email` | Remetente, destinatário, CC e SMTP (iguais para todas as filiais) |
 | `whatsapp` | Notificação via API local: uma por filial, com o relatório em imagem |
 | `sms` | Notificação Brevo. Substituída pelo WhatsApp; mantida desligada |
+| `dias_uteis` | Calendário que alimenta a projeção do relatório de metas |
 
 ## Filiais
 
@@ -85,12 +99,14 @@ Cada item em `filiais`:
 | `id_filial` | ID numérico da filial no EVO (`idFilial` / `idfilialfrontend`) |
 | `nome` | Título da filial (relatório + assunto do e-mail) |
 | `meta_mes` | Opcional. Meta de faturamento do mês (número, sem `R$`) |
+| `funcionario_report_ativo` | Opcional. `true` liga o [relatório de metas por consultor](#relatório-de-metas-por-consultor) desta filial |
 | `colaboradores` | Lista de vendedores daquela filial |
 
 Cada colaborador:
 
 - `id_funcionario` — ID do select `#dropFunc` na tela de vendas da filial  
 - `nome` — rótulo no relatório  
+- `meta_funcionario` — opcional. Meta individual do mês, usada só no relatório de metas  
 
 Para adicionar outra filial, inclua outro objeto em `filiais` com seu `id_filial`, `nome` e lista de colaboradores. Não é preciso duplicar login nem e-mail.
 
@@ -105,6 +121,23 @@ Valor de referência usado no e-mail para mostrar o quanto do mês já foi ating
 
 A meta é por filial e por mês. Deixe o campo de fora enquanto não tiver um número oficial — o relatório continua funcionando normalmente.
 
+### Relatório de metas por consultor
+
+Um segundo relatório, com destinatários próprios, que mostra quanto cada consultor vendeu no mês e se vai bater a meta individual no ritmo atual. Ele reaproveita as vendas que o relatório principal já buscou — não há consulta extra ao EVO.
+
+Depende de dois campos:
+
+| Campo | Onde fica | Efeito |
+|-------|-----------|--------|
+| `funcionario_report_ativo` | Na filial | `true` liga o relatório para aquela filial |
+| `meta_funcionario` | No colaborador | Meta individual do mês (número, sem `R$`) |
+
+Quem não tem `meta_funcionario` fica de fora do relatório e é listado no rodapé. Se nenhum colaborador da filial tiver meta, o relatório não é gerado e o console avisa.
+
+O `meta_mes` da filial **não** é usado aqui: o total do relatório de metas é a soma das `meta_funcionario`, para o total nunca contradizer as linhas acima dele. Quando os dois números divergem, o console avisa.
+
+Formato, colunas e fórmulas em [relatorio.md](relatorio.md#relatório-de-metas-por-consultor).
+
 ### Formato legado (ainda aceito)
 
 Se `filiais` não existir, o script aceita `id_filial` + `colaboradores` (ou `id_funcionario` / `nome_colaborador`) no nível raiz, como no formato antigo. Prefira migrar para `filiais`.
@@ -117,12 +150,28 @@ Se `filiais` não existir, o script aceita `id_filial` + `colaboradores` (ou `id
 | `remetente` | From |
 | `destinatario` | To |
 | `cc` | Cópia opcional (`""` se não quiser) |
+| `funcionario_report` | Destinatários do relatório de metas (veja abaixo) |
 | `smtp_*` | Servidor SMTP |
 
 Assunto dinâmico:
 
 ```
 Relatório de Vendas - {nome da filial} - {data de ontem}
+```
+
+### E-mail do relatório de metas (`email.funcionario_report`)
+
+O relatório de metas por consultor sai em um e-mail separado, para outra lista — em geral gerência, não a mesma caixa que recebe o relatório de vendas.
+
+| Campo | Descrição |
+|-------|-----------|
+| `destinatarios` | Lista de e-mails. Vazia = o e-mail de metas não é enviado |
+| `cc` | Cópia opcional (`""` se não quiser) |
+
+Vale o mesmo `email.ativo` e o mesmo SMTP do relatório de vendas. Assunto:
+
+```
+Relatório de Metas - {nome da filial} - {data de ontem}
 ```
 
 ## WhatsApp (API local)
@@ -143,6 +192,13 @@ A legenda da imagem é curta de propósito — os números já estão no PNG, n�
 📍 _Anacã Música_ · 07/09/2026
 ```
 
+A do relatório de metas segue o mesmo padrão, e vai **só** para `funcionario_report.destinatarios` — nunca cai na lista geral, porque meta individual é dado sensível:
+
+```
+*RELATÓRIO DE METAS*
+📊 _Anacã Dança_ · 07/09/2026
+```
+
 O PNG é desenhado com Pillow a partir dos mesmos dados que alimentam o e-mail, com o mesmo conteúdo e a mesma paleta: cabeçalho, KPIs, meta, contribuição e o detalhe de ontem. Fora ficam o gráfico circular (o donut não tem rótulos, para não quebrar em clientes de e-mail, e ficaria ilegível sozinho) e a menção aos anexos no rodapé, já que `.txt` e `.csv` não acompanham a imagem.
 
 | Campo | Descrição |
@@ -151,6 +207,7 @@ O PNG é desenhado com Pillow a partir dos mesmos dados que alimentam o e-mail, 
 | `url` | Endpoint da API local (ex.: `http://127.0.0.1:3001/notifications`) |
 | `api_key` | Enviada no header `x-api-key` |
 | `destinatarios` | Lista de JIDs. Contato termina em `@c.us`, grupo em `@g.us` |
+| `funcionario_report.destinatarios` | JIDs do relatório de metas. Vazio = o PNG de metas não é enviado |
 | `anexar_imagem` | `false` manda só o texto, sem renderizar o PNG |
 | `imagem_largura` | Largura da renderização em CSS px (padrão `640`) |
 | `imagem_escala` | Fator de densidade. `2` gera o dobro de pixels, texto mais nítido |
@@ -171,6 +228,57 @@ Para ver as mensagens e as imagens sem enviar nada, use `--dry-run`:
 ```powershell
 py rodar_relatorios_filiais.py --dry-run
 py gerar_relatorio_vendas.py --id-filial 1 --dry-run
+```
+
+## Dias úteis (`dias_uteis`)
+
+Calendário que alimenta a projeção do relatório de metas. Só é lido por esse relatório — o de vendas ignora este bloco.
+
+O peso de cada dia segue a regra do negócio, não a de escritório:
+
+| Dia | Peso |
+|-----|------|
+| Segunda a sexta | `1` |
+| Sábado | `peso_sabado` (padrão `0.5`, meio período) |
+| Domingo | `0` |
+| Feriado, em qualquer dia | `0` |
+
+| Campo | Descrição |
+|-------|-----------|
+| `peso_sabado` | Quanto vale o sábado. `0.5` = meio dia; `0` = a casa não abre no sábado |
+| `feriados_extras` | Feriados municipais/estaduais e pontos facultativos (lista, veja abaixo) |
+
+O bloco todo é opcional: sem ele valem `peso_sabado: 0.5` e apenas os feriados nacionais.
+
+### Feriados nacionais (automáticos)
+
+Não precisam ser listados, e a Sexta-feira Santa é **calculada** a partir da Páscoa de cada ano:
+
+`01/01` · Sexta-feira Santa · `21/04` · `01/05` · `07/09` · `12/10` · `02/11` · `15/11` · `20/11` (Consciência Negra, nacional desde a Lei 14.759/2023) · `25/12`
+
+### `feriados_extras`
+
+Aceita três formatos na mesma lista:
+
+| Formato | Exemplo | Significado |
+|---------|---------|-------------|
+| `"MM-DD"` | `"01-25"` | Repete todo ano (aniversário de São Paulo) |
+| `"AAAA-MM-DD"` | `"2026-11-16"` | Vale só naquele ano (emenda, evento) |
+| Palavra-chave | `"carnaval"`, `"corpus-christi"` | Datas móveis, calculadas pela Páscoa |
+
+`"carnaval"` cobre a segunda e a terça. As duas palavras-chave existem porque Carnaval e Corpus Christi são ponto facultativo, mas fecham a casa em boa parte do setor — e mudariam de data todo ano se fossem escritas à mão. Um item inválido é ignorado com aviso no console, sem derrubar o job.
+
+Para conferir o calendário de um mês sem tocar na API do EVO:
+
+```powershell
+py dias_uteis.py            # mês atual
+py dias_uteis.py 2026-09    # mês específico
+```
+
+A saída lista o peso de cada dia e fecha com os três totais usados na projeção:
+
+```
+Ate 13/09/2026 -> total 23 | passados 9 | restantes 14
 ```
 
 ## SMS (Brevo) — desligado

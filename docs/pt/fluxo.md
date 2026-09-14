@@ -79,6 +79,12 @@ O script não usa Playwright. Ele reproduz o fluxo HTTP do navegador com a bibli
                                     ┌──────────────────┐
                                     │ API local        │
                                     │ /notifications   │  (WhatsApp: texto + PNG)
+                                    └────────┬─────────┘
+                                             │ so com funcionario_report_ativo
+                                             ▼
+                                    ┌──────────────────┐
+                                    │ metas por        │
+                                    │ consultor        │  (e-mail + PNG, outra lista)
                                     └──────────────────┘
 ```
 
@@ -147,6 +153,16 @@ Depois do e-mail de cada filial, o script desenha o relatório em PNG (Pillow, s
 | Campos | `to` (JID), `message` (texto), `file` (PNG, opcional) |
 
 Não há mensagem de fechamento no caminho feliz: se todas as filiais passarem, o lote termina com as imagens já enviadas. Só quando alguma filial falha sai um último aviso, só texto, listando o que não foi enviado. O Pillow é opcional: sem ele a mensagem vai sem anexo. Configuração em [configuracao.md](configuracao.md).
+
+### Passo 5 — Relatório de metas por consultor (opcional, por filial)
+
+Último passo de cada filial, e só quando ela tem `funcionario_report_ativo`. **Não há chamada nova ao EVO**: o cálculo usa as vendas do mês que o Passo 3 já trouxe.
+
+1. `dias_uteis.calcular_dias_uteis` monta o calendário do mês do período (segunda a sexta = 1, sábado = 0,5, feriados = 0).
+2. `metas_consultores.calcular_metas` cruza cada colaborador com sua `meta_funcionario` e calcula projeção, `%`, falta e falta por dia útil.
+3. O e-mail vai para `email.funcionario_report.destinatarios` e o PNG para `whatsapp.funcionario_report.destinatarios` — listas separadas das do relatório de vendas, porque meta individual é dado sensível.
+
+Formato e fórmulas em [relatorio.md](relatorio.md#relatório-de-metas-por-consultor).
 
 ---
 

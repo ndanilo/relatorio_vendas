@@ -4,9 +4,18 @@
 Valida os graficos do e-mail renderizando o HTML no Chromium (Playwright).
 
 Roda so em desenvolvimento: o job agendado continua usando apenas a
-biblioteca padrao. Aqui o objetivo e garantir que o SVG inline e a versao
-em HTML puro representam os mesmos numeros, e que a versao HTML sobrevive
-quando o cliente de e-mail remove o SVG (Gmail) ou o ignora (Outlook).
+biblioteca padrao. Sao duas familias de cenario:
+
+  * Relatorio de vendas: garante que o SVG inline e a versao em HTML puro
+    representam os mesmos numeros, e que a versao HTML sobrevive quando o
+    cliente de e-mail remove o SVG (Gmail) ou o ignora (Outlook).
+  * Relatorio de metas: garante que projecao, %, falta e falta por dia
+    aparecem com os valores das formulas da planilha, que a flag de status
+    (abaixo/atingida) casa com o %, e que o % do total sai da razao entre os
+    totais - nao da media dos percentuais individuais.
+
+Os numeros esperados sao calculados aqui, direto das formulas, e nao
+importados do codigo sob teste.
 
 Uso:
     py -m pip install -r requirements-dev.txt
@@ -26,7 +35,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 RAIZ = SCRIPT_DIR.parent
 sys.path.insert(0, str(RAIZ))
 
-from email_relatorio import montar_email_html  # noqa: E402
+from email_relatorio import montar_email_html, montar_email_metas_html  # noqa: E402
+from metas_consultores import calcular_metas  # noqa: E402
 
 # Tolerancias das checagens geometricas (em pontos percentuais / pixels).
 TOLERANCIA_PERCENTUAL = 1.5
@@ -79,6 +89,121 @@ def cenarios():
             ],
         },
     ]
+
+
+DIAS_UTEIS_PADRAO = {
+    "total": 23.0,
+    "passados": 9.0,
+    "restantes": 14.0,
+    "peso_sabado": 0.5,
+}
+
+
+def cenarios_metas():
+    """Cenarios do relatorio de metas: (nome, meta, realizado no mes).
+
+    As metas de "metas-padrao" sao desproporcionais de proposito: quem tem a
+    meta pequena vai muito bem e quem tem a grande vai mal, entao a media dos
+    percentuais (120.1%, "META ATINGIDA") contradiz o % do total (90.2%,
+    "ABAIXO DA META"). Trocar a formula do total pela media dos percentuais
+    erra o numero, a barra e a flag - as tres coisas quebram a checagem.
+
+    "metas-atingida" tem um consultor que passou da meta: falta e falta por
+    dia tem de sair zeradas, nunca negativas. Ali a soma das faltas limitadas
+    (40 mil) tambem difere de meta_total - realizado_total (30 mil), que e o
+    comportamento documentado.
+    """
+    return [
+        {
+            "nome": "metas-padrao",
+            "tipo": "metas",
+            "dias": DIAS_UTEIS_PADRAO,
+            "consultores": [
+                ("Consultor A", 200000.0, 70000.0),
+                ("Consultor B", 20000.0, 15000.0),
+                ("Consultor C", 170000.0, 52619.85),
+            ],
+        },
+        {
+            "nome": "metas-atingida",
+            "tipo": "metas",
+            "dias": DIAS_UTEIS_PADRAO,
+            "consultores": [
+                ("Consultor D", 100000.0, 110000.0),
+                ("Consultor E", 80000.0, 40000.0),
+            ],
+        },
+        {
+            "nome": "metas-sem-vendas",
+            "tipo": "metas",
+            "dias": DIAS_UTEIS_PADRAO,
+            "consultores": [
+                ("Consultor A", 200000.0, 0.0),
+                ("Consultor B", 150000.0, 0.0),
+            ],
+        },
+    ]
+
+
+def montar_html_metas(cenario):
+    """Constroi o HTML do relatorio de metas e os numeros esperados."""
+    dias = cenario["dias"]
+
+    resultados = []
+    config = []
+    for indice, (nome, meta, realizado) in enumerate(cenario["consultores"]):
+        resultados.append(
+            {
+                "id_funcionario": indice,
+                "nome": nome,
+                "registros_mes": (
+                    [_venda(f"Mes {nome}", realizado)] if realizado else []
+                ),
+            }
+        )
+        config.append({"id_funcionario": indice, "meta_funcionario": meta})
+
+    metas = calcular_metas(resultados, config, dias)
+    html = montar_email_metas_html(
+        f"Unidade Centro ({cenario['nome']})", metas, "01/09/2026", "13/09/2026"
+    )
+
+    # Formulas da planilha, recalculadas aqui de forma independente.
+    linhas = {}
+    meta_total = realizado_total = projecao_total = falta_total = 0.0
+    for nome, meta, realizado in cenario["consultores"]:
+        projecao = realizado / dias["passados"] * dias["total"]
+        percentual = projecao / meta * 100
+        falta = max(meta - realizado, 0.0)
+        linhas[nome] = {
+            "meta": meta,
+            "realizado": realizado,
+            "projecao": projecao,
+            "percentual": percentual,
+            "falta": falta,
+            "por_dia": falta / dias["restantes"],
+            "status": "atingida" if percentual >= 100 else "abaixo",
+        }
+        meta_total += meta
+        realizado_total += realizado
+        projecao_total += projecao
+        falta_total += falta
+
+    percentual_total = projecao_total / meta_total * 100
+    esperado = {
+        "dias": dias,
+        "linhas": linhas,
+        "total": {
+            "meta": meta_total,
+            "realizado": realizado_total,
+            "projecao": projecao_total,
+            "percentual": percentual_total,
+            "falta": falta_total,
+            "por_dia": falta_total / dias["restantes"],
+            "status": "atingida" if percentual_total >= 100 else "abaixo",
+        },
+    }
+    return html, esperado
 
 
 def montar_html(cenario):
@@ -300,8 +425,117 @@ def checar_sem_svg(pagina, esperado, falhas):
             falhas.append("Sem SVG, o progresso da meta nao aparece em texto")
 
 
+ROTULO_STATUS = {"abaixo": "ABAIXO DA META", "atingida": "META ATINGIDA"}
+
+
+def _checar_cartao_meta(cartao, alvo, falhas, rotulo):
+    """Confere um cartao do relatorio de metas contra os numeros esperados."""
+    from email_relatorio import formatar_moeda
+
+    if not cartao.is_visible():
+        falhas.append(f"{rotulo}: cartao oculto")
+
+    status = cartao.get_attribute("data-status")
+    if status != alvo["status"]:
+        falhas.append(
+            f"{rotulo}: status '{status}' vs '{alvo['status']}' esperado "
+            f"(% = {alvo['percentual']:.1f})"
+        )
+
+    obtido = float(cartao.get_attribute("data-percentual"))
+    if not _quase_igual(obtido, alvo["percentual"], TOLERANCIA_PERCENTUAL):
+        falhas.append(
+            f"{rotulo}: {obtido:.1f}% no cartao vs {alvo['percentual']:.1f}% esperado"
+        )
+
+    texto = cartao.inner_text().replace("\u00a0", " ")
+    if ROTULO_STATUS[alvo["status"]] not in texto:
+        falhas.append(f"{rotulo}: selo '{ROTULO_STATUS[alvo['status']]}' ausente")
+
+    for campo in ("meta", "realizado", "projecao", "falta", "por_dia"):
+        valor = formatar_moeda(alvo[campo])
+        if valor not in texto:
+            falhas.append(f"{rotulo}: {campo} '{valor}' ausente no cartao")
+
+    if f"{alvo['percentual']:.1f}%" not in texto:
+        falhas.append(f"{rotulo}: percentual '{alvo['percentual']:.1f}%' ausente")
+
+    barra = cartao.query_selector("td.preenchimento")
+    alvo_barra = min(alvo["percentual"], 100)
+    if barra is None:
+        if alvo_barra > 0:
+            falhas.append(f"{rotulo}: barra de progresso sem preenchimento")
+    else:
+        largura = float(barra.get_attribute("data-percentual"))
+        if not _quase_igual(largura, alvo_barra, TOLERANCIA_PERCENTUAL):
+            falhas.append(
+                f"{rotulo}: barra em {largura:.1f}% vs {alvo_barra:.1f}% esperado"
+            )
+
+
+def checar_metas(pagina, esperado, falhas):
+    """Relatorio de metas: numeros, flag do % e o rodape de dias uteis."""
+    from metas_consultores import formatar_dias
+
+    cartoes = pagina.query_selector_all('tr[data-bloco="meta-consultor"]')
+    if len(cartoes) != len(esperado["linhas"]):
+        falhas.append(
+            f"{len(cartoes)} cartao(oes) de consultor; "
+            f"esperado {len(esperado['linhas'])}"
+        )
+
+    vistos = []
+    for cartao in cartoes:
+        nome = cartao.get_attribute("data-nome")
+        alvo = esperado["linhas"].get(nome)
+        if alvo is None:
+            falhas.append(f"Cartao de consultor inesperado: {nome}")
+            continue
+        vistos.append(nome)
+        _checar_cartao_meta(cartao, alvo, falhas, nome)
+
+    # Pior % primeiro: quem precisa de atencao nao pode cair no fim da lista.
+    ordenado = sorted(vistos, key=lambda nome: esperado["linhas"][nome]["percentual"])
+    if vistos != ordenado:
+        falhas.append(f"Cartoes fora de ordem por %: {vistos} (esperado {ordenado})")
+
+    total = pagina.query_selector('tr[data-bloco="meta-total"]')
+    if total is None:
+        falhas.append("Cartao do total da filial ausente")
+    else:
+        # Se o % do total virasse media dos percentuais individuais, este
+        # cenario acusaria: os numeros foram escolhidos para divergirem.
+        _checar_cartao_meta(total, esperado["total"], falhas, "Total")
+
+    rodape = pagina.query_selector('tr[data-bloco="dias-uteis"]')
+    if rodape is None:
+        falhas.append("Rodape de dias uteis ausente")
+    else:
+        dias = esperado["dias"]
+        for campo in ("total", "passados", "restantes"):
+            obtido = float(rodape.get_attribute(f"data-{campo}"))
+            if not _quase_igual(obtido, dias[campo], 0.01):
+                falhas.append(
+                    f"Rodape: dias {campo} = {obtido:g} vs {dias[campo]:g} esperado"
+                )
+        texto = rodape.inner_text().replace("\u00a0", " ")
+        for campo in ("total", "passados", "restantes"):
+            if formatar_dias(dias[campo]) not in texto:
+                falhas.append(f"Rodape sem os dias uteis {campo} em texto")
+
+    # O relatorio de metas nao usa SVG, entao nao ha o que quebrar no Gmail.
+    if pagina.query_selector("svg") is not None:
+        falhas.append("Relatorio de metas nao deveria ter SVG")
+
+    corpo = _texto_normalizado(pagina)
+    for colado in ("metaR$", "METAR$", "%R$"):
+        if colado in corpo:
+            falhas.append(f"Texto colado: '{colado}'")
+
+
 def validar_cenario(pagina, cenario, destino, ver=False):
-    html, esperado = montar_html(cenario)
+    metas = cenario.get("tipo") == "metas"
+    html, esperado = montar_html_metas(cenario) if metas else montar_html(cenario)
     arquivo = destino / f"test_email_{cenario['nome']}.html"
     arquivo.write_text(html, encoding="utf-8")
 
@@ -309,20 +543,24 @@ def validar_cenario(pagina, cenario, destino, ver=False):
     pagina.goto(arquivo.as_uri())
     pagina.wait_for_load_state("load")
 
-    checar_svg(pagina, esperado, falhas)
-    checar_html(pagina, esperado, falhas)
-    checar_textos(pagina, esperado, falhas)
+    if metas:
+        checar_metas(pagina, esperado, falhas)
+    else:
+        checar_svg(pagina, esperado, falhas)
+        checar_html(pagina, esperado, falhas)
+        checar_textos(pagina, esperado, falhas)
 
     pagina.screenshot(
         path=str(destino / f"test_grafico_{cenario['nome']}.png"), full_page=True
     )
 
-    checar_sem_svg(pagina, esperado, falhas)
-    checar_textos(pagina, esperado, falhas)
-    pagina.screenshot(
-        path=str(destino / f"test_grafico_{cenario['nome']}_sem_svg.png"),
-        full_page=True,
-    )
+    if not metas:
+        checar_sem_svg(pagina, esperado, falhas)
+        checar_textos(pagina, esperado, falhas)
+        pagina.screenshot(
+            path=str(destino / f"test_grafico_{cenario['nome']}_sem_svg.png"),
+            full_page=True,
+        )
 
     if ver:
         print(f"    HTML: {arquivo}")
@@ -337,7 +575,7 @@ def executar(tentativas, ver):
         navegador = p.chromium.launch()
         pagina = navegador.new_page(viewport={"width": 700, "height": 1200})
 
-        restantes = cenarios()
+        restantes = cenarios() + cenarios_metas()
         for tentativa in range(1, tentativas + 1):
             print(f"Tentativa {tentativa}/{tentativas}")
             falharam = []

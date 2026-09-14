@@ -41,6 +41,15 @@ def formatar_moeda(valor):
     return f"R$ {texto}"
 
 
+def formatar_moeda_opcional(valor):
+    """Como formatar_moeda, mas None (metrica indisponivel) vira "-"."""
+    return formatar_moeda(valor) if valor is not None else "-"
+
+
+def formatar_percentual(valor):
+    return f"{valor:.1f}%" if valor is not None else "-"
+
+
 def escapar(texto):
     return (
         str(texto or "")
@@ -342,6 +351,46 @@ def _titulo_secao(texto):
     )
 
 
+def _cabecalho(rotulo, nome_filial, subtitulo):
+    return (
+        '<tr><td style="padding:0 0 18px 0;font-family:Arial,Helvetica,sans-serif;">'
+        f'<div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;'
+        f'color:{COR_DESTAQUE};font-weight:bold;">{escapar(rotulo)}</div>'
+        f'<div style="font-size:24px;font-weight:bold;color:{COR_TINTA};'
+        'padding-top:4px;line-height:1.25;">'
+        f"{escapar(nome_filial)}</div>"
+        f'<div style="font-size:13px;color:{COR_SUAVE};padding-top:6px;">'
+        f"{subtitulo}</div>"
+        f'<div style="font-size:11px;color:{COR_SUAVE};padding-top:2px;">'
+        f'Gerado em {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>'
+        "</td></tr>"
+    )
+
+
+def _pagina(partes):
+    """Casca do e-mail: doctype, fundo, largura de 600px e o empilhamento mobile."""
+    return (
+        "<!DOCTYPE html>"
+        '<html lang="pt-BR"><head>'
+        '<meta charset="utf-8" />'
+        '<meta name="viewport" content="width=device-width, initial-scale=1" />'
+        "<style>"
+        "@media only screen and (max-width:480px){"
+        ".kpi{display:block !important;width:100% !important;padding:0 0 12px 0 !important;}"
+        "}"
+        "</style>"
+        "</head>"
+        f'<body style="margin:0;padding:0;background:{COR_FUNDO};">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        f'border="0" style="background:{COR_FUNDO};">'
+        '<tr><td align="center" style="padding:24px 12px;">'
+        '<table role="presentation" width="600" cellpadding="0" cellspacing="0" '
+        'border="0" style="width:100%;max-width:600px;">'
+        f"{''.join(partes)}"
+        "</table></td></tr></table></body></html>"
+    )
+
+
 # ----------------------------------------------------------------------
 # Montagem do e-mail
 # ----------------------------------------------------------------------
@@ -375,17 +424,11 @@ def montar_email_html(
     partes = []
 
     partes.append(
-        '<tr><td style="padding:0 0 18px 0;font-family:Arial,Helvetica,sans-serif;">'
-        f'<div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;'
-        f'color:{COR_DESTAQUE};font-weight:bold;">Relatório de Vendas</div>'
-        f'<div style="font-size:24px;font-weight:bold;color:{COR_TINTA};'
-        'padding-top:4px;line-height:1.25;">'
-        f"{escapar(nome_filial)}</div>"
-        f'<div style="font-size:13px;color:{COR_SUAVE};padding-top:6px;">'
-        f"Ontem: {escapar(ontem_str)} &middot; {escapar(periodo_label)}</div>"
-        f'<div style="font-size:11px;color:{COR_SUAVE};padding-top:2px;">'
-        f'Gerado em {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>'
-        "</td></tr>"
+        _cabecalho(
+            "Relatório de Vendas",
+            nome_filial,
+            f"Ontem: {escapar(ontem_str)} &middot; {escapar(periodo_label)}",
+        )
     )
 
     partes.append(
@@ -438,25 +481,178 @@ def montar_email_html(
         "Os arquivos .txt e .csv estão anexados a este e-mail.</td></tr>"
     )
 
-    html = (
-        "<!DOCTYPE html>"
-        '<html lang="pt-BR"><head>'
-        '<meta charset="utf-8" />'
-        '<meta name="viewport" content="width=device-width, initial-scale=1" />'
-        "<style>"
-        "@media only screen and (max-width:480px){"
-        ".kpi{display:block !important;width:100% !important;padding:0 0 12px 0 !important;}"
-        "}"
-        "</style>"
-        "</head>"
-        f'<body style="margin:0;padding:0;background:{COR_FUNDO};">'
-        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
-        f'border="0" style="background:{COR_FUNDO};">'
-        '<tr><td align="center" style="padding:24px 12px;">'
-        '<table role="presentation" width="600" cellpadding="0" cellspacing="0" '
-        'border="0" style="width:100%;max-width:600px;">'
-        f"{''.join(partes)}"
-        "</table></td></tr></table></body></html>"
+    return _pagina(partes)
+
+
+# ----------------------------------------------------------------------
+# Relatorio de metas por consultor
+# ----------------------------------------------------------------------
+# As linhas chegam prontas de metas_consultores.calcular_metas, inclusive o
+# status (rotulo, marcador e cor). Aqui so tem layout.
+def _selo_status(status):
+    """Flag do consultor: marcador + rotulo, nao so cor.
+
+    Em escala de cinza, no .txt e para quem nao distingue as cores, o "▼" e o
+    texto em caixa alta continuam dizendo que a meta nao vai ser batida.
+    """
+    return (
+        f'<td align="right" valign="top" style="font-size:11px;font-weight:bold;'
+        f'color:{status["cor"]};white-space:nowrap;padding-left:10px;'
+        'letter-spacing:.04em;">'
+        f'{status["marcador"]} {escapar(status["rotulo"])}</td>'
     )
 
-    return html
+
+def _metrica(rotulo, valor, cor):
+    return (
+        '<td width="50%" valign="top" style="padding:0 0 10px 0;'
+        'font-family:Arial,Helvetica,sans-serif;">'
+        f'<div style="font-size:10px;letter-spacing:.07em;text-transform:uppercase;'
+        f'color:{COR_SUAVE};">{escapar(rotulo)}</div>'
+        f'<div style="font-size:15px;font-weight:bold;color:{cor};padding-top:3px;">'
+        f"{escapar(valor)}</div></td>"
+    )
+
+
+def _grade_metricas(linha):
+    """Meta/Realizado, Projeção/%, Falta/Por dia - duas colunas para caber no celular."""
+    cor_status = linha["status"]["cor"]
+    pares = [
+        (
+            _metrica("Meta", formatar_moeda(linha["meta"]), COR_TINTA),
+            _metrica("Realizado", formatar_moeda(linha["realizado"]), COR_DESTAQUE),
+        ),
+        (
+            _metrica(
+                "Projeção", formatar_moeda_opcional(linha["projecao"]), cor_status
+            ),
+            _metrica(
+                "% da meta", formatar_percentual(linha["percentual"]), cor_status
+            ),
+        ),
+        (
+            _metrica("Falta", formatar_moeda(linha["falta"]), COR_TINTA),
+            _metrica(
+                "Por dia útil", formatar_moeda_opcional(linha["por_dia"]), COR_TINTA
+            ),
+        ),
+    ]
+    corpo = "".join(f"<tr>{esquerda}{direita}</tr>" for esquerda, direita in pares)
+    return (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        f'border="0">{corpo}</table>'
+    )
+
+
+def _cartao_meta(linha, bloco):
+    # A faixa lateral usa a cor do status, nao a cor de identidade do
+    # colaborador: um cartao "ABAIXO DA META" com faixa verde diria o
+    # contrario do selo. Aqui nao ha donut para casar a cor, entao a
+    # identidade nao perde nada.
+    barra = ""
+    if linha["percentual"] is not None:
+        barra = (
+            '<tr><td colspan="2" style="padding:10px 0 2px 0;">'
+            f'{_barra_html(min(linha["percentual"], 100), linha["status"]["cor"], altura=10)}'
+            "</td></tr>"
+        )
+
+    percentual = linha["percentual"]
+    return (
+        f'<tr class="meta-consultor" data-bloco="{bloco}" '
+        f'data-nome="{escapar(linha["nome"])}" '
+        f'data-percentual="{"" if percentual is None else f"{percentual:.1f}"}" '
+        f'data-status="{linha["status"]["chave"]}">'
+        '<td style="padding:0 0 16px 0;">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        f'border="0" style="background:#FFFFFF;border:1px solid {COR_BORDA};'
+        'border-radius:10px;">'
+        f'<tr><td style="padding:16px 18px;border-left:4px solid {linha["status"]["cor"]};'
+        'border-radius:10px;font-family:Arial,Helvetica,sans-serif;">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
+        "<tr>"
+        f'<td style="font-size:15px;font-weight:bold;color:{COR_TINTA};">'
+        f'{escapar(linha["nome"])}</td>'
+        f"{_selo_status(linha['status'])}"
+        "</tr>"
+        f"{barra}"
+        f'<tr><td colspan="2" style="padding-top:12px;">{_grade_metricas(linha)}</td></tr>'
+        "</table></td></tr></table></td></tr>"
+    )
+
+
+def _rodape_metas(metas):
+    dias = metas["dias"]
+    notas = list(metas["rodape"])
+    if metas["sem_meta"]:
+        notas.append(
+            "Sem meta_funcionario configurada (fora deste relatório): "
+            + ", ".join(metas["sem_meta"])
+        )
+    notas.append("Relatório automático do sistema EVO.")
+
+    linhas = "".join(
+        f'<div style="padding-top:4px;">{escapar(nota)}</div>' for nota in notas
+    )
+    return (
+        '<tr data-bloco="dias-uteis" '
+        f'data-total="{dias["total"]:g}" data-passados="{dias["passados"]:g}" '
+        f'data-restantes="{dias["restantes"]:g}">'
+        '<td style="padding:8px 0 0 0;font-family:Arial,Helvetica,sans-serif;'
+        f'font-size:11px;color:{COR_SUAVE};line-height:1.5;">'
+        f"{linhas}</td></tr>"
+    )
+
+
+def montar_email_metas_html(nome_filial, metas, periodo_inicio_str, ontem_str):
+    """Corpo HTML do relatorio de metas (mesma casca e paleta do de vendas)."""
+    total = metas["total"]
+    cor_status = total["status"]["cor"]
+
+    partes = [
+        _cabecalho(
+            "Relatório de Metas",
+            nome_filial,
+            f"Mês ({escapar(periodo_inicio_str)} a {escapar(ontem_str)})",
+        )
+    ]
+
+    # Sem entidade HTML aqui: o detalhe do cartao passa por escapar(), entao
+    # "&middot;" apareceria cru no e-mail.
+    detalhe_projecao = (
+        f"{formatar_percentual(total['percentual'])} da meta · "
+        f"{total['status']['marcador']} {total['status']['rotulo']}"
+    )
+    partes.append(
+        '<tr><td style="padding:0 0 16px 0;">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
+        "<tr>"
+        '<td class="kpi" width="50%" valign="top" style="padding:0 6px 12px 0;">'
+        + _cartao_kpi(
+            "Realizado no mês",
+            formatar_moeda(total["realizado"]),
+            f"de {formatar_moeda(total['meta'])} em metas",
+            COR_TINTA,
+        )
+        + "</td>"
+        '<td class="kpi" width="50%" valign="top" style="padding:0 0 12px 6px;">'
+        + _cartao_kpi(
+            "Projeção do mês",
+            formatar_moeda_opcional(total["projecao"]),
+            detalhe_projecao,
+            cor_status,
+        )
+        + "</td></tr></table></td></tr>"
+    )
+
+    if total["meta"] > 0:
+        partes.append(_bloco_meta(total["realizado"], total["meta"]))
+
+    partes.append(_titulo_secao("Metas por consultor"))
+    for linha in metas["linhas"]:
+        partes.append(_cartao_meta(linha, "meta-consultor"))
+    partes.append(_cartao_meta(total, "meta-total"))
+
+    partes.append(_rodape_metas(metas))
+
+    return _pagina(partes)

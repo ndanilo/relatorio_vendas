@@ -58,6 +58,9 @@ evo_config.json
 modelo-calculo-consultores.csv
 modelo-calculo-consultores.xlsx
 
+# Excel lock files left behind while a spreadsheet is open
+~$*.xlsx
+
 # Browser network captures - contain auth tokens
 *.har
 

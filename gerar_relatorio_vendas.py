@@ -49,11 +49,15 @@ import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from email_relatorio import montar_email_html
+from dias_uteis import calcular_dias_uteis
+from email_relatorio import montar_email_html, montar_email_metas_html
+from metas_consultores import calcular_metas, montar_relatorio_metas_texto
 from notificacao_whatsapp import (
     WhatsAppError,
+    gerar_imagem_metas,
     gerar_imagem_relatorio,
     notificar_whatsapp_filial,
+    notificar_whatsapp_metas,
     whatsapp_ativo,
 )
 
@@ -354,6 +358,10 @@ def calcular_periodos(agora=None):
         "ontem_str": formatar_data(ontem),
         "periodo_inicio_str": formatar_data(periodo_inicio),
         "periodo_fim_str": formatar_data(ontem),
+        # As datas cruas alimentam o calendario de dias uteis do relatorio de
+        # metas, que precisa do mes do periodo e nao do dia da execucao.
+        "ontem": ontem.date(),
+        "periodo_inicio": periodo_inicio.date(),
     }
 
 
@@ -485,12 +493,23 @@ def salvar_csv(registros, caminho):
 # ----------------------------------------------------------------------
 # Envio por e-mail
 # ----------------------------------------------------------------------
-def enviar_email(config, assunto, corpo_texto, anexos=None, corpo_html=None):
+def enviar_email(
+    config,
+    assunto,
+    corpo_texto,
+    anexos=None,
+    corpo_html=None,
+    destinatario=None,
+    cc=None,
+):
     """Envia o relatorio por e-mail usando smtplib (biblioteca padrao).
 
     Retorna True se o e-mail foi enviado; False se estiver desativado.
     So envia se config["email"]["ativo"] for true. Preencha os campos de
     "email" no evo_config.json antes de habilitar.
+
+    destinatario/cc trocam os enderecos padrao de "email" (o relatorio de
+    metas tem os proprios, em email.funcionario_report).
 
     corpo_texto e sempre enviado como alternativa em texto puro; corpo_html
     (quando informado) vira a versao principal. Os graficos vao inline no
@@ -504,8 +523,10 @@ def enviar_email(config, assunto, corpo_texto, anexos=None, corpo_html=None):
         print("Envio por e-mail desativado (email.ativo=false em evo_config.json).")
         return False
 
-    destinatario = email_cfg["destinatario"]
-    cc = (email_cfg.get("cc") or "").strip()
+    destinatario = destinatario or email_cfg["destinatario"]
+    if cc is None:
+        cc = email_cfg.get("cc")
+    cc = (cc or "").strip()
 
     msg = EmailMessage()
     msg["Subject"] = assunto
@@ -606,6 +627,110 @@ def enviar_sms_brevo(config, conteudo):
             raise EvoError(f"Falha de rede ao enviar SMS para {telefone}: {exc}") from exc
 
 
+def processar_metas_funcionarios(
+    config,
+    filial,
+    colaboradores_resultados,
+    periodos,
+    slug,
+    data_arquivo,
+    dry_run=False,
+    sem_whatsapp=False,
+):
+    """Segundo relatorio: metas por consultor, com destinatarios proprios.
+
+    So roda quando a filial tem "funcionario_report_ativo": true e ao menos um
+    colaborador com "meta_funcionario". Reaproveita as vendas do mes que o
+    relatorio principal ja buscou - nao ha nova chamada ao EVO.
+    """
+    if not filial.get("funcionario_report_ativo"):
+        return
+
+    nome_filial = filial["nome"]
+    ontem_str = periodos["ontem_str"]
+    periodo_inicio_str = periodos["periodo_inicio_str"]
+
+    dias = calcular_dias_uteis(periodos["periodo_inicio"], periodos["ontem"], config)
+    metas = calcular_metas(colaboradores_resultados, filial["colaboradores"], dias)
+
+    if not metas["linhas"]:
+        print(
+            '\n  [AVISO] "funcionario_report_ativo" ligado, mas nenhum '
+            'colaborador tem "meta_funcionario"; relatorio de metas nao gerado.'
+        )
+        return
+
+    print("\n  --- Relatorio de metas por consultor ---")
+    print(
+        f"  Dias uteis: {dias['total']:g} | decorridos: {dias['passados']:g} "
+        f"| restantes: {dias['restantes']:g}"
+    )
+    if metas["sem_meta"]:
+        print(
+            '  Sem "meta_funcionario" (fora deste relatorio): '
+            + ", ".join(metas["sem_meta"])
+        )
+    meta_mes = filial.get("meta_mes")
+    if meta_mes and abs(meta_mes - metas["total"]["meta"]) > 0.01:
+        print(
+            f"  [AVISO] A soma das metas dos consultores ({metas['total']['meta']:.2f}) "
+            f'difere de "meta_mes" ({meta_mes:.2f}). O relatorio de metas usa a soma.'
+        )
+
+    texto = montar_relatorio_metas_texto(
+        nome_filial, metas, periodo_inicio_str, ontem_str
+    )
+    print("\n" + texto + "\n")
+
+    txt_path = OUTPUT_DIR / f"relatorio_metas_{slug}_{data_arquivo}.txt"
+    with open(txt_path, "w", encoding="utf-8") as f:
+        f.write(texto)
+    print(f"  Relatorio de metas salvo em:\n    {txt_path}")
+
+    html = montar_email_metas_html(nome_filial, metas, periodo_inicio_str, ontem_str)
+    assunto = f"Relatório de Metas - {nome_filial} - {ontem_str}"
+    destino_cfg = (config.get("email") or {}).get("funcionario_report") or {}
+    destinatarios = [
+        str(item).strip()
+        for item in destino_cfg.get("destinatarios") or []
+        if str(item).strip()
+    ]
+
+    if dry_run:
+        print("  [dry-run] E-mail de metas nao enviado.")
+    elif not destinatarios:
+        print(
+            "  Nenhum destinatario em email.funcionario_report.destinatarios; "
+            "e-mail de metas nao enviado."
+        )
+    else:
+        enviar_email(
+            config,
+            assunto=assunto,
+            corpo_texto=texto,
+            anexos=[txt_path],
+            corpo_html=html,
+            destinatario=", ".join(destinatarios),
+            cc=destino_cfg.get("cc"),
+        )
+
+    if not sem_whatsapp and (whatsapp_ativo(config) or dry_run):
+        print("\n  Notificando as metas por WhatsApp...")
+        imagem = gerar_imagem_metas(
+            config,
+            OUTPUT_DIR / f"whatsapp_metas_{slug}_{data_arquivo}.png",
+            nome_filial,
+            metas,
+            periodo_inicio_str,
+            ontem_str,
+        )
+        if imagem:
+            print(f"  Imagem do relatorio de metas: {imagem}")
+        notificar_whatsapp_metas(
+            config, nome_filial, ontem_str, imagem=imagem, dry_run=dry_run
+        )
+
+
 def processar_filial(
     cliente,
     token_evo3,
@@ -649,6 +774,9 @@ def processar_filial(
 
         colaboradores_resultados.append(
             {
+                # O id casa o resultado com a "meta_funcionario" da config no
+                # relatorio de metas; nomes repetidos nao confundem.
+                "id_funcionario": id_func,
                 "nome": nome,
                 "registros_ontem": registros_ontem,
                 "registros_mes": registros_mes,
@@ -726,6 +854,17 @@ def processar_filial(
         notificar_whatsapp_filial(
             config, nome_filial, ontem_str, imagem=imagem, dry_run=dry_run
         )
+
+    processar_metas_funcionarios(
+        config,
+        filial,
+        colaboradores_resultados,
+        periodos,
+        slug,
+        data_arquivo,
+        dry_run=dry_run,
+        sem_whatsapp=sem_whatsapp,
+    )
 
     return {"nome": nome_filial, "email_enviado": email_enviado}
 

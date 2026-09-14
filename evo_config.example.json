@@ -7,15 +7,18 @@
 
   "_aviso_meta": "Opcional: adicione meta_mes dentro de uma filial para exibir o progresso da meta no e-mail.",
 
+  "_aviso_metas_consultor": "Opcional: funcionario_report_ativo=true na filial liga o segundo relatorio (metas por consultor), que usa meta_funcionario de cada colaborador e vai para os destinatarios de email.funcionario_report e whatsapp.funcionario_report.",
+
   "filiais": [
     {
       "id_filial": 1,
       "meta_mes": 500000,
       "nome": "Unidade Centro",
+      "funcionario_report_ativo": true,
       "colaboradores": [
-        {"id_funcionario": 101, "nome": "Colaborador A"},
-        {"id_funcionario": 102, "nome": "Colaborador B"},
-        {"id_funcionario": 103, "nome": "Colaborador C"}
+        {"id_funcionario": 101, "nome": "Colaborador A", "meta_funcionario": 200000},
+        {"id_funcionario": 102, "nome": "Colaborador B", "meta_funcionario": 200000},
+        {"id_funcionario": 103, "nome": "Colaborador C", "meta_funcionario": 100000}
       ]
     },
     {
@@ -34,6 +37,11 @@
     "remetente": "remetente@exemplo.com",
     "destinatario": "usuario@exemplo.com.br",
     "cc": "copia@exemplo.com",
+    "funcionario_report": {
+      "_aviso": "Destinatarios do relatorio de metas por consultor. Sem esta lista o e-mail de metas nao e enviado.",
+      "destinatarios": ["gerencia@exemplo.com.br"],
+      "cc": ""
+    },
     "smtp_servidor": "smtp-relay.brevo.com",
     "smtp_porta": 587,
     "smtp_usuario": "seu-usuario@smtp-brevo.com",
@@ -62,9 +70,22 @@
       "5511999999999@c.us",
       "5511999999999-1234567890@g.us"
     ],
+    "funcionario_report": {
+      "_aviso": "JIDs do relatorio de metas por consultor. Sem esta lista o PNG de metas nao e enviado - metas nao caem no grupo geral por acidente.",
+      "destinatarios": ["5511999999999@c.us"]
+    },
     "anexar_imagem": true,
     "imagem_largura": 640,
     "imagem_escala": 2,
     "timeout": 60
+  },
+
+  "dias_uteis": {
+    "_aviso": "Base da projecao do relatorio de metas. Feriados nacionais sao calculados (inclusive a Sexta-feira Santa). Em feriados_extras entram os municipais/estaduais e os pontos facultativos: \"MM-DD\" repete todo ano, \"AAAA-MM-DD\" vale so naquele ano, e \"carnaval\"/\"corpus-christi\" acompanham a Pascoa. peso_sabado=0.5 conta sabado como meio dia util.",
+    "peso_sabado": 0.5,
+    "feriados_extras": [
+      "01-25",
+      "07-09"
+    ]
   }
 }
