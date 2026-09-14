@@ -89,17 +89,24 @@ def carregar_filiais():
                 "id_filial": int(id_filial),
                 "nome": nome,
                 "colaboradores": colaboradores,
+                # Decide se a filial entra na segunda passada (metas).
+                "funcionario_report_ativo": bool(
+                    filial.get("funcionario_report_ativo")
+                ),
             }
         )
     return validadas
 
 
-def rodar_filial(filial, dry_run=False):
+def rodar_filial(filial, dry_run=False, extra=None, titulo=None):
     id_filial = filial["id_filial"]
     nome = filial["nome"]
     qtd = len(filial["colaboradores"])
     print("=" * 70)
-    print(f"Filial: {nome} (id={id_filial}) | {qtd} colaborador(es)")
+    if titulo:
+        print(f"{titulo}: {nome} (id={id_filial})")
+    else:
+        print(f"Filial: {nome} (id={id_filial}) | {qtd} colaborador(es)")
     print("=" * 70)
 
     cmd = [
@@ -109,6 +116,7 @@ def rodar_filial(filial, dry_run=False):
         str(id_filial),
         "--sem-resumo",
     ]
+    cmd.extend(extra or [])
     if dry_run:
         cmd.append("--dry-run")
     resultado = subprocess.run(cmd, cwd=str(SCRIPT_DIR))
@@ -140,9 +148,12 @@ def main(argv=None):
     ok = []
     falhas = []
 
+    # Primeira passada: so os relatorios de vendas. As metas ficam para depois
+    # de todas as filiais, com "--somente-metas", para que quem recebe os dois
+    # nao veja o e-mail de metas no meio dos relatorios de vendas.
     for filial in filiais:
         try:
-            codigo = rodar_filial(filial, dry_run=args.dry_run)
+            codigo = rodar_filial(filial, dry_run=args.dry_run, extra=["--sem-metas"])
             if codigo == 0:
                 ok.append(filial)
                 print(f'[OK] Filial "{filial["nome"]}" concluida.\n')
@@ -170,9 +181,10 @@ def main(argv=None):
         for filial, motivo in falhas:
             print(f'  - {filial["nome"]} (id={filial["id_filial"]}): {motivo}')
 
-    # Fim de lote: cada filial ja mandou a propria imagem por WhatsApp, entao
-    # aqui so sai o SMS (hoje desligado) e, se algo quebrou, um alerta.
+    # Fim do despacho de vendas: cada filial ja mandou a propria imagem por
+    # WhatsApp, entao aqui so sai o SMS (hoje desligado).
     erro_notificacao = None
+    ontem_str = None
     try:
         config = carregar_config()
         email_ativo = bool((config.get("email") or {}).get("ativo"))
@@ -180,17 +192,47 @@ def main(argv=None):
         if ok and email_ativo and not args.dry_run:
             print("\nEnviando SMS de resumo...")
             notificar_sms_resumo(config, ontem_str)
-        if falhas:
+    except (EvoError, WhatsAppError) as exc:
+        erro_notificacao = str(exc)
+        print(f"[ERRO] Falha na notificacao de fim de lote: {exc}")
+
+    # Segunda passada: relatorio de metas das filiais que o habilitaram, agora
+    # que todos os relatorios de vendas ja sairam.
+    com_metas = [f for f in ok if f["funcionario_report_ativo"]]
+    if com_metas:
+        print(f"\nRelatorio de metas: {len(com_metas)} filial(is).\n")
+    for filial in com_metas:
+        try:
+            codigo = rodar_filial(
+                filial,
+                dry_run=args.dry_run,
+                extra=["--somente-metas"],
+                titulo="Metas",
+            )
+            if codigo == 0:
+                print(f'[OK] Metas de "{filial["nome"]}" enviadas.\n')
+            else:
+                falhas.append((filial, f"metas: exit code {codigo}"))
+                print(
+                    f'[ERRO] Metas de "{filial["nome"]}" falharam '
+                    f"(codigo {codigo}).\n"
+                )
+        except Exception as exc:
+            falhas.append((filial, f"metas: {exc}"))
+            print(f'[ERRO] Metas de "{filial["nome"]}" falharam: {exc}.\n')
+
+    if falhas and ontem_str:
+        try:
             print("\nAvisando as falhas por WhatsApp...")
             notificar_whatsapp_falhas(
-                config,
+                carregar_config(),
                 ontem_str,
                 [(filial["nome"], motivo) for filial, motivo in falhas],
                 dry_run=args.dry_run,
             )
-    except (EvoError, WhatsAppError) as exc:
-        erro_notificacao = str(exc)
-        print(f"[ERRO] Falha na notificacao de fim de lote: {exc}")
+        except (EvoError, WhatsAppError) as exc:
+            erro_notificacao = str(exc)
+            print(f"[ERRO] Falha ao avisar as falhas: {exc}")
 
     if falhas or erro_notificacao:
         sys.exit(1)

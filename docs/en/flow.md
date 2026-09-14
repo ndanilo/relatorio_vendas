@@ -80,7 +80,7 @@ The script does not use Playwright. It reproduces the browser HTTP flow with the
                                     │ local API        │
                                     │ /notifications   │  (WhatsApp: text + PNG)
                                     └────────┬─────────┘
-                                             │ only if funcionario_report_ativo
+                                             │ end of batch (all branches)
                                              ▼
                                     ┌──────────────────┐
                                     │ consultant goal  │
@@ -154,13 +154,27 @@ After each branch email, the script draws the report as a PNG (Pillow, no HTML i
 
 There is no closing message on the happy path: if every branch succeeds, the batch ends with the images already sent. Only when a branch fails does a final text-only alert go out listing what was not sent. Pillow is optional: without it the message goes without the attachment. Configuration in [configuration.md](configuration.md).
 
-### Step 5 — Consultant goal report (optional, per branch)
+### Step 5 — Consultant goal report (optional, at the end of the batch)
 
-The last step for each branch, and only when it has `funcionario_report_ativo`. **No new EVO request**: the math runs on the month's sales Step 3 already fetched.
+The last step of **the whole batch**, not of each branch: goal reports only go out after every branch has dispatched its sales report (and the summary SMS has been sent). That way anyone receiving both reports reads the branches first and the per-consultant closing last.
+
+Since each branch runs in its own subprocess, the orchestrator makes two passes:
+
+| Pass | Command | What it dispatches |
+|------|---------|--------------------|
+| 1st, every branch | `--id-filial N --sem-resumo --sem-metas` | Sales report (email + WhatsApp) |
+| SMS | — | Batch summary (currently disabled) |
+| 2nd, only with `funcionario_report_ativo` | `--id-filial N --sem-resumo --somente-metas` | Goal report (email + WhatsApp) |
+
+The second pass logs in again and queries **only the month** — yesterday is not fetched, because the goal report does not use it. Since the period ends yesterday, the query is deterministic: the result is identical to the first pass.
+
+Inside the goal pass:
 
 1. `dias_uteis.calcular_dias_uteis` builds the calendar for the period's month (Monday to Friday = 1, Saturday = 0.5, holidays = 0).
 2. `metas_consultores.calcular_metas` matches each employee with their `meta_funcionario` and computes projection, `%`, shortfall, and shortfall per workday.
 3. The email goes to `email.funcionario_report.destinatarios` and the PNG to `whatsapp.funcionario_report.destinatarios` — lists separate from the sales report's, since individual goals are sensitive.
+
+Running `gerar_relatorio_vendas.py` directly (without the orchestrator), everything happens in a single process: goal reports are held in memory and sent after the branch loop, with no repeated query.
 
 Format and formulas in [report.md](report.md#consultant-goal-report).
 

@@ -126,12 +126,23 @@ O marcador e o rótulo em caixa alta acompanham a cor, então a flag sobrevive a
 
 Atenção a uma diferença que parece inconsistência e não é: `%` compara a **projeção** com a meta, enquanto `Falta` compara o **realizado** com a meta. Um consultor pode estar sinalizado como positivo (no ritmo) e ainda ter uma `Falta` alta no mês.
 
+### Toda barra diz o que mede
+
+O relatório tem duas barras de progresso com formas idênticas e significados diferentes, então cada uma leva o valor, a referência e o percentual escritos ao lado:
+
+| Barra | Rótulo | O que mede |
+|-------|--------|-----------|
+| Progresso do total, no topo | `Realizado R$ 175.463,25 de R$ 570.000,00` · `30.8%` | Realizado sobre a soma das metas |
+| Uma por cartão de consultor | `Projeção R$ 97.508,24 de R$ 200.000,00` · `48.8%` | Projeção sobre a meta individual |
+
+O percentual ao lado da barra do cartão é o mesmo que decide o selo — daí `48.8%` vir junto de `▼ ABAIXO DA META`. Por isso `Projeção` e `% da meta` **não** se repetem na grade de números abaixo: mostrar o mesmo valor duas vezes daria a impressão de serem medidas distintas. A grade fica com `Meta`, `Realizado`, `Falta` e `Por dia útil`.
+
 ### Estrutura
 
 1. **Cabeçalho** — `RELATÓRIO DE METAS`, filial, período do mês e data de geração  
 2. **Cartões de destaque** — realizado no mês e projeção do mês (com o `%` e o selo)  
 3. **Progresso da meta** — barra do realizado sobre a soma das metas  
-4. **Metas por consultor** — um cartão por consultor + o cartão do total da filial  
+4. **Metas por consultor** — um cartão por consultor + o cartão do total da filial, cada um com selo, barra rotulada e a grade de números  
 5. **Rodapé de dias úteis** — a metadata que sustenta a conta (veja abaixo)  
 
 ### Rodapé de dias úteis
@@ -156,6 +167,18 @@ Assunto do e-mail:
 ```
 Relatório de Metas - {nome da filial} - {data_de_ontem}
 ```
+
+### Ordem de envio: sempre o último
+
+O relatório de metas é despachado **depois de todos os relatórios de vendas do lote**, e não junto da filial que o originou. Com duas filiais e o relatório de metas em uma delas, quem recebe os três vê nesta ordem:
+
+1. Relatório de vendas da primeira filial
+2. Relatório de vendas da segunda filial
+3. Relatório de metas
+
+O que decide isso é o orquestrador, e não a filial: como cada filial roda em um subprocesso próprio, ele faz duas passadas — a primeira com `--sem-metas` em todas as filiais, e a segunda com `--somente-metas` só nas que habilitaram o relatório, depois do SMS de resumo. A segunda passada refaz o login e consulta só o mês (não busca o dia de ontem, que ela não usa); como o período vai até ontem, o resultado é sempre o mesmo da primeira passada.
+
+Rodando `gerar_relatorio_vendas.py` direto, sem o orquestrador, a ordem é a mesma: as metas ficam acumuladas e saem depois do laço de filiais.
 
 ## Arquivos gerados
 

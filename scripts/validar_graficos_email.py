@@ -435,6 +435,16 @@ def _checar_cartao_meta(cartao, alvo, falhas, rotulo):
     if not cartao.is_visible():
         falhas.append(f"{rotulo}: cartao oculto")
 
+    # A barra do cartao mede projecao sobre meta, e a do topo mede realizado
+    # sobre meta. Sem o rotulo as duas teriam a mesma cara medindo coisas
+    # diferentes, entao ele e obrigatorio.
+    texto_barra = (
+        f"Projeção {formatar_moeda(alvo['projecao'])} de "
+        f"{formatar_moeda(alvo['meta'])}"
+    )
+    if texto_barra not in cartao.inner_text().replace("\u00a0", " "):
+        falhas.append(f"{rotulo}: barra sem o rotulo '{texto_barra}'")
+
     status = cartao.get_attribute("data-status")
     if status != alvo["status"]:
         falhas.append(
@@ -475,7 +485,19 @@ def _checar_cartao_meta(cartao, alvo, falhas, rotulo):
 
 def checar_metas(pagina, esperado, falhas):
     """Relatorio de metas: numeros, flag do % e o rodape de dias uteis."""
+    from email_relatorio import formatar_moeda
     from metas_consultores import formatar_dias
+
+    barra_topo = pagina.query_selector('tr[data-bloco="meta"]')
+    if barra_topo is None:
+        falhas.append("Barra de progresso do total ausente")
+    else:
+        texto_topo = (
+            f"Realizado {formatar_moeda(esperado['total']['realizado'])} de "
+            f"{formatar_moeda(esperado['total']['meta'])}"
+        )
+        if texto_topo not in barra_topo.inner_text().replace("\u00a0", " "):
+            falhas.append(f"Barra do total sem o rotulo '{texto_topo}'")
 
     cartoes = pagina.query_selector_all('tr[data-bloco="meta-consultor"]')
     if len(cartoes) != len(esperado["linhas"]):

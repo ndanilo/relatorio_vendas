@@ -175,10 +175,17 @@ def _swatch(cor):
     )
 
 
-def _bloco_meta(total_mes, meta_mes):
-    """Barra de meta em HTML puro: textos separados e tipografia estavel."""
+def _bloco_meta(total_mes, meta_mes, rotulo=None):
+    """Barra de meta em HTML puro: textos separados e tipografia estavel.
+
+    `rotulo` prefixa o valor ("Realizado R$ ... de R$ ..."). O relatorio de
+    metas tem duas barras com significados diferentes - realizado sobre meta
+    aqui, projecao sobre meta em cada consultor -, entao lá o prefixo diz qual
+    e qual. No relatorio de vendas, onde a barra e unica, ele fica de fora.
+    """
     percentual = (total_mes / meta_mes) * 100
     cor = COR_POSITIVO if percentual >= 100 else COR_DESTAQUE
+    prefixo = f"{escapar(rotulo)} " if rotulo else ""
 
     return (
         '<tr data-bloco="meta" data-grafico="meta">'
@@ -191,7 +198,7 @@ def _bloco_meta(total_mes, meta_mes):
         "<tr>"
         f'<td style="font-size:13px;color:{COR_TINTA};padding-bottom:10px;'
         'padding-right:12px;">'
-        f"{escapar(formatar_moeda(total_mes))} de "
+        f"{prefixo}{escapar(formatar_moeda(total_mes))} de "
         f"{escapar(formatar_moeda(meta_mes))}</td>"
         f'<td align="right" valign="top" style="font-size:16px;font-weight:bold;'
         f'color:{cor};padding-bottom:10px;white-space:nowrap;width:1%;">'
@@ -515,20 +522,15 @@ def _metrica(rotulo, valor, cor):
 
 
 def _grade_metricas(linha):
-    """Meta/Realizado, Projeção/%, Falta/Por dia - duas colunas para caber no celular."""
-    cor_status = linha["status"]["cor"]
+    """Meta/Realizado e Falta/Por dia - duas colunas para caber no celular.
+
+    Projecao e % ficam na linha rotulada acima da barra, nao aqui: repetir os
+    dois numeros no cartao so daria a impressao de que sao coisas diferentes.
+    """
     pares = [
         (
             _metrica("Meta", formatar_moeda(linha["meta"]), COR_TINTA),
             _metrica("Realizado", formatar_moeda(linha["realizado"]), COR_DESTAQUE),
-        ),
-        (
-            _metrica(
-                "Projeção", formatar_moeda_opcional(linha["projecao"]), cor_status
-            ),
-            _metrica(
-                "% da meta", formatar_percentual(linha["percentual"]), cor_status
-            ),
         ),
         (
             _metrica("Falta", formatar_moeda(linha["falta"]), COR_TINTA),
@@ -549,15 +551,28 @@ def _cartao_meta(linha, bloco):
     # colaborador: um cartao "ABAIXO DA META" com faixa verde diria o
     # contrario do selo. Aqui nao ha donut para casar a cor, entao a
     # identidade nao perde nada.
-    barra = ""
-    if linha["percentual"] is not None:
-        barra = (
-            '<tr><td colspan="2" style="padding:10px 0 2px 0;">'
-            f'{_barra_html(min(linha["percentual"], 100), linha["status"]["cor"], altura=10)}'
+    percentual = linha["percentual"]
+    cor_status = linha["status"]["cor"]
+
+    # A barra e o selo saem da projecao, nao do realizado. Sem esse rotulo o
+    # cartao teria a mesma forma da barra do topo, que mede outra coisa.
+    barra = (
+        '<tr>'
+        f'<td style="font-size:13px;color:{COR_TINTA};padding:10px 12px 8px 0;">'
+        f'Projeção {escapar(formatar_moeda_opcional(linha["projecao"]))} de '
+        f'{escapar(formatar_moeda(linha["meta"]))}</td>'
+        f'<td align="right" valign="top" style="font-size:16px;font-weight:bold;'
+        f'color:{cor_status};padding:10px 0 8px 0;white-space:nowrap;width:1%;">'
+        f"{escapar(formatar_percentual(percentual))}</td>"
+        "</tr>"
+    )
+    if percentual is not None:
+        barra += (
+            '<tr><td colspan="2">'
+            f"{_barra_html(min(percentual, 100), cor_status, altura=10)}"
             "</td></tr>"
         )
 
-    percentual = linha["percentual"]
     return (
         f'<tr class="meta-consultor" data-bloco="{bloco}" '
         f'data-nome="{escapar(linha["nome"])}" '
@@ -646,7 +661,9 @@ def montar_email_metas_html(nome_filial, metas, periodo_inicio_str, ontem_str):
     )
 
     if total["meta"] > 0:
-        partes.append(_bloco_meta(total["realizado"], total["meta"]))
+        partes.append(
+            _bloco_meta(total["realizado"], total["meta"], rotulo="Realizado")
+        )
 
     partes.append(_titulo_secao("Metas por consultor"))
     for linha in metas["linhas"]:

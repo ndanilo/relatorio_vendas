@@ -80,7 +80,7 @@ O script não usa Playwright. Ele reproduz o fluxo HTTP do navegador com a bibli
                                     │ API local        │
                                     │ /notifications   │  (WhatsApp: texto + PNG)
                                     └────────┬─────────┘
-                                             │ so com funcionario_report_ativo
+                                             │ fim do lote (todas as filiais)
                                              ▼
                                     ┌──────────────────┐
                                     │ metas por        │
@@ -154,13 +154,27 @@ Depois do e-mail de cada filial, o script desenha o relatório em PNG (Pillow, s
 
 Não há mensagem de fechamento no caminho feliz: se todas as filiais passarem, o lote termina com as imagens já enviadas. Só quando alguma filial falha sai um último aviso, só texto, listando o que não foi enviado. O Pillow é opcional: sem ele a mensagem vai sem anexo. Configuração em [configuracao.md](configuracao.md).
 
-### Passo 5 — Relatório de metas por consultor (opcional, por filial)
+### Passo 5 — Relatório de metas por consultor (opcional, no fim do lote)
 
-Último passo de cada filial, e só quando ela tem `funcionario_report_ativo`. **Não há chamada nova ao EVO**: o cálculo usa as vendas do mês que o Passo 3 já trouxe.
+Último passo de **todo o lote**, não de cada filial: só depois que todas as filiais despacharam seus relatórios de vendas (e o SMS de resumo saiu) é que as metas são enviadas. Assim quem recebe os dois relatórios lê primeiro as filiais e depois o fechamento por consultor.
+
+Como cada filial roda em um subprocesso próprio, o orquestrador faz duas passadas:
+
+| Passada | Comando | O que despacha |
+|---------|---------|----------------|
+| 1ª, para toda filial | `--id-filial N --sem-resumo --sem-metas` | Relatório de vendas (e-mail + WhatsApp) |
+| SMS | — | Resumo do lote (hoje desligado) |
+| 2ª, só com `funcionario_report_ativo` | `--id-filial N --sem-resumo --somente-metas` | Relatório de metas (e-mail + WhatsApp) |
+
+A segunda passada refaz o login e consulta **apenas o mês** — o dia de ontem não é buscado, porque o relatório de metas não usa. Como o período termina em ontem, a consulta é sempre determinística: o resultado é idêntico ao da primeira passada.
+
+Dentro da passada de metas:
 
 1. `dias_uteis.calcular_dias_uteis` monta o calendário do mês do período (segunda a sexta = 1, sábado = 0,5, feriados = 0).
 2. `metas_consultores.calcular_metas` cruza cada colaborador com sua `meta_funcionario` e calcula projeção, `%`, falta e falta por dia útil.
 3. O e-mail vai para `email.funcionario_report.destinatarios` e o PNG para `whatsapp.funcionario_report.destinatarios` — listas separadas das do relatório de vendas, porque meta individual é dado sensível.
+
+Rodando `gerar_relatorio_vendas.py` direto (sem o orquestrador), tudo acontece em um processo só: as metas ficam acumuladas em memória e saem depois do laço de filiais, sem consulta repetida.
 
 Formato e fórmulas em [relatorio.md](relatorio.md#relatório-de-metas-por-consultor).
 

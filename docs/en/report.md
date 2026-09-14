@@ -126,12 +126,23 @@ The marker and the uppercase label travel with the color, so the flag survives t
 
 Watch out for one difference that looks like an inconsistency but is not: `%` compares the **projection** against the goal, while `Falta` compares the **realized** amount against the goal. A consultant can be flagged positive (on pace) and still owe a large `Falta` for the month.
 
+### Every bar states what it measures
+
+The report has two progress bars with identical shapes and different meanings, so each one carries its value, its reference, and its percentage written alongside:
+
+| Bar | Label | What it measures |
+|-----|-------|------------------|
+| Total progress, at the top | `Realizado R$ 175.463,25 de R$ 570.000,00` · `30.8%` | Realized over the sum of the goals |
+| One per consultant card | `Projeção R$ 97.508,24 de R$ 200.000,00` · `48.8%` | Projection over the individual goal |
+
+The percentage next to a card's bar is the one that decides the badge — which is why `48.8%` sits beside `▼ ABAIXO DA META`. That is also why `Projeção` and `% da meta` are **not** repeated in the number grid below: showing the same value twice would suggest they are different measurements. The grid keeps `Meta`, `Realizado`, `Falta`, and `Por dia útil`.
+
 ### Structure
 
 1. **Header** — `RELATÓRIO DE METAS`, branch, month period, and generation time  
 2. **Highlight cards** — realized this month and projected month (with the `%` and the badge)  
 3. **Goal progress** — bar of realized over the sum of the goals  
-4. **Goals per consultant** — one card per consultant + the branch total card  
+4. **Goals per consultant** — one card per consultant + the branch total card, each with its badge, labelled bar, and number grid  
 5. **Workday footer** — the metadata behind the math (see below)  
 
 ### Workday footer
@@ -156,6 +167,18 @@ Email subject:
 ```
 Relatório de Metas - {nome da filial} - {data_de_ontem}
 ```
+
+### Dispatch order: always last
+
+The goal report is dispatched **after every sales report in the batch**, not alongside the branch that produced it. With two branches and the goal report enabled on one of them, anyone receiving all three sees this order:
+
+1. Sales report for the first branch
+2. Sales report for the second branch
+3. Goal report
+
+This is decided by the orchestrator, not by the branch: since each branch runs in its own subprocess, it makes two passes — the first with `--sem-metas` across all branches, and the second with `--somente-metas` only on those that enabled the report, after the summary SMS. The second pass logs in again and queries only the month (it skips yesterday, which it does not use); since the period ends yesterday, the result always matches the first pass.
+
+Running `gerar_relatorio_vendas.py` directly, without the orchestrator, the order is the same: goal reports are accumulated and sent after the branch loop.
 
 ## Generated files
 

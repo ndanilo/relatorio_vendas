@@ -253,18 +253,23 @@ def _bloco_meta(tela, y, largura, total_mes, meta_mes):
     return _barra_meta(tela, y + 12, largura, total_mes, meta_mes)
 
 
-def _barra_meta(tela, y, largura, total_mes, meta_mes):
-    """So o cartao da barra de progresso (o relatorio de metas usa apenas ele)."""
+def _barra_meta(tela, y, largura, total_mes, meta_mes, rotulo=None):
+    """So o cartao da barra de progresso (o relatorio de metas usa apenas ele).
+
+    `rotulo` prefixa o valor, para distinguir esta barra (realizado sobre meta)
+    da barra de cada consultor (projecao sobre meta) no relatorio de metas.
+    """
     percentual = total_mes / meta_mes * 100
     cor_barra = COR_POSITIVO if percentual >= 100 else COR_DESTAQUE
     altura = 74
     tela.cartao(MARGEM, y, largura, altura)
     interno = MARGEM + 18
     util = largura - 36
+    prefixo = f"{rotulo} " if rotulo else ""
     tela.texto(
         interno,
         y + 17,
-        f"{formatar_moeda(total_mes)} de {formatar_moeda(meta_mes)}",
+        f"{prefixo}{formatar_moeda(total_mes)} de {formatar_moeda(meta_mes)}",
         13,
         COR_TINTA,
     )
@@ -574,7 +579,7 @@ def _cartao_meta(tela, y, largura, linha):
     coluna = util / 2
     tem_barra = linha["percentual"] is not None
 
-    altura = 16 + 22 + (18 if tem_barra else 0) + 3 * ALTURA_LINHA_METRICA + 8
+    altura = 16 + 22 + 24 + (18 if tem_barra else 0) + 2 * ALTURA_LINHA_METRICA + 8
     # Faixa lateral na cor do status, nao na cor do colaborador: aqui nao ha
     # donut para casar a cor, e faixa verde em cartao "ABAIXO DA META" mentiria.
     tela.cartao(MARGEM, y, largura, altura, cor_faixa=status["cor"])
@@ -590,7 +595,28 @@ def _cartao_meta(tela, y, largura, linha):
         ancora="ra",
     )
 
-    linha_y = y + 38
+    # A barra e o selo saem da projecao, nao do realizado. Sem esse rotulo o
+    # cartao teria a mesma forma da barra do topo, que mede outra coisa.
+    linha_y = y + 42
+    tela.texto(
+        interno,
+        linha_y,
+        f"Projeção {formatar_moeda_opcional(linha['projecao'])} de "
+        f"{formatar_moeda(linha['meta'])}",
+        13,
+        COR_TINTA,
+    )
+    tela.texto(
+        interno + util,
+        linha_y - 2,
+        formatar_percentual(linha["percentual"]),
+        16,
+        status["cor"],
+        negrito=True,
+        ancora="ra",
+    )
+    linha_y += 24
+
     if tem_barra:
         tela.barra(interno, linha_y, util, min(linha["percentual"], 100), status["cor"])
         linha_y += 18
@@ -599,10 +625,6 @@ def _cartao_meta(tela, y, largura, linha):
         (
             ("Meta", formatar_moeda(linha["meta"]), COR_TINTA),
             ("Realizado", formatar_moeda(linha["realizado"]), COR_DESTAQUE),
-        ),
-        (
-            ("Projeção", formatar_moeda_opcional(linha["projecao"]), status["cor"]),
-            ("% da meta", formatar_percentual(linha["percentual"]), status["cor"]),
         ),
         (
             ("Falta", formatar_moeda(linha["falta"]), COR_TINTA),
@@ -674,7 +696,14 @@ def _desenhar_metas(
     y += 16
 
     if total["meta"] > 0:
-        y = _barra_meta(tela, y, largura_conteudo, total["realizado"], total["meta"])
+        y = _barra_meta(
+            tela,
+            y,
+            largura_conteudo,
+            total["realizado"],
+            total["meta"],
+            rotulo="Realizado",
+        )
 
     y = _titulo_secao(tela, y, "Metas por consultor")
     for linha in metas["linhas"]:

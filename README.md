@@ -12,7 +12,7 @@ Python automation that generates per-employee sales reports in the EVO (W12) sys
 4. Generates a `.txt` and a `.csv` per branch in `relatorios/`.
 5. Sends a responsive HTML email per branch (contribution and goal charts), if `email.ativo` is `true`.
 6. Notifies each branch on WhatsApp (local API), attaching the same report rendered as a PNG without the donut chart, if `whatsapp.ativo` is `true`. The message is just the title — the numbers are in the image.
-7. For branches with `funcionario_report_ativo`, sends a second report — **consultant goals** — to its own recipients: per-consultant goal, month-to-date, month projection, `%` of goal, shortfall, and shortfall per workday, each row flagged `▼ ABAIXO DA META` or `▲ META ATINGIDA`.
+7. **After every branch report has gone out**, sends a second report — **consultant goals** — for branches with `funcionario_report_ativo`, to its own recipients: per-consultant goal, month-to-date, month projection, `%` of goal, shortfall, and shortfall per workday, each row flagged `▼ ABAIXO DA META` or `▲ META ATINGIDA`. It is always the last dispatch, so whoever receives both reports gets the branches first.
 8. If a branch fails, sends a WhatsApp alert at the end of the batch. When everything succeeds there is no closing message. SMS (Brevo) was replaced by this channel and is disabled.
 
 Text and bars use **plain HTML**; the contribution donut is **SVG with shapes only** (no text, to avoid breaking in email clients). The email carries no image attachment — the PNG exists only for WhatsApp, which does not render HTML.
@@ -86,6 +86,13 @@ Full rehearsal without dispatching anything: generates files and images and prin
 ```powershell
 py rodar_relatorios_filiais.py --dry-run
 py gerar_relatorio_vendas.py --id-filial 1 --dry-run
+```
+
+Only the consultant goal report, or only the sales report (the orchestrator uses both to keep the goal report last — see [docs/en/flow.md](docs/en/flow.md)):
+
+```powershell
+py gerar_relatorio_vendas.py --id-filial 1 --somente-metas
+py gerar_relatorio_vendas.py --id-filial 1 --sem-metas
 ```
 
 ## Validate email charts

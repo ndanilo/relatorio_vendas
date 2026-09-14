@@ -627,24 +627,21 @@ def enviar_sms_brevo(config, conteudo):
             raise EvoError(f"Falha de rede ao enviar SMS para {telefone}: {exc}") from exc
 
 
-def processar_metas_funcionarios(
-    config,
-    filial,
-    colaboradores_resultados,
-    periodos,
-    slug,
-    data_arquivo,
-    dry_run=False,
-    sem_whatsapp=False,
+def preparar_relatorio_metas(
+    config, filial, colaboradores_resultados, periodos, slug, data_arquivo
 ):
-    """Segundo relatorio: metas por consultor, com destinatarios proprios.
+    """Calcula o relatorio de metas da filial e salva o .txt.
 
-    So roda quando a filial tem "funcionario_report_ativo": true e ao menos um
-    colaborador com "meta_funcionario". Reaproveita as vendas do mes que o
-    relatorio principal ja buscou - nao ha nova chamada ao EVO.
+    Nao envia nada: devolve o pacote para quem chamou despachar quando quiser.
+    O envio fica para o fim do lote, depois de todas as filiais - senao o
+    e-mail de metas cai no meio dos relatorios de vendas de quem recebe os dois.
+
+    Retorna None quando a filial nao tem "funcionario_report_ativo" ou quando
+    nenhum colaborador tem "meta_funcionario". Reaproveita as vendas do mes que
+    o relatorio principal ja buscou - nao ha nova chamada ao EVO.
     """
     if not filial.get("funcionario_report_ativo"):
-        return
+        return None
 
     nome_filial = filial["nome"]
     ontem_str = periodos["ontem_str"]
@@ -658,7 +655,7 @@ def processar_metas_funcionarios(
             '\n  [AVISO] "funcionario_report_ativo" ligado, mas nenhum '
             'colaborador tem "meta_funcionario"; relatorio de metas nao gerado.'
         )
-        return
+        return None
 
     print("\n  --- Relatorio de metas por consultor ---")
     print(
@@ -687,8 +684,27 @@ def processar_metas_funcionarios(
         f.write(texto)
     print(f"  Relatorio de metas salvo em:\n    {txt_path}")
 
-    html = montar_email_metas_html(nome_filial, metas, periodo_inicio_str, ontem_str)
-    assunto = f"Relatório de Metas - {nome_filial} - {ontem_str}"
+    return {
+        "nome_filial": nome_filial,
+        "metas": metas,
+        "texto": texto,
+        "txt_path": txt_path,
+        "ontem_str": ontem_str,
+        "periodo_inicio_str": periodo_inicio_str,
+        "png_path": OUTPUT_DIR / f"whatsapp_metas_{slug}_{data_arquivo}.png",
+    }
+
+
+def despachar_relatorio_metas(config, pacote, dry_run=False, sem_whatsapp=False):
+    """Envia o relatorio de metas ja calculado por e-mail e WhatsApp."""
+    nome_filial = pacote["nome_filial"]
+    ontem_str = pacote["ontem_str"]
+
+    print(f"\n--- Enviando relatorio de metas: {nome_filial} ---")
+
+    html = montar_email_metas_html(
+        nome_filial, pacote["metas"], pacote["periodo_inicio_str"], ontem_str
+    )
     destino_cfg = (config.get("email") or {}).get("funcionario_report") or {}
     destinatarios = [
         str(item).strip()
@@ -706,9 +722,9 @@ def processar_metas_funcionarios(
     else:
         enviar_email(
             config,
-            assunto=assunto,
-            corpo_texto=texto,
-            anexos=[txt_path],
+            assunto=f"Relatório de Metas - {nome_filial} - {ontem_str}",
+            corpo_texto=pacote["texto"],
+            anexos=[pacote["txt_path"]],
             corpo_html=html,
             destinatario=", ".join(destinatarios),
             cc=destino_cfg.get("cc"),
@@ -718,10 +734,10 @@ def processar_metas_funcionarios(
         print("\n  Notificando as metas por WhatsApp...")
         imagem = gerar_imagem_metas(
             config,
-            OUTPUT_DIR / f"whatsapp_metas_{slug}_{data_arquivo}.png",
+            pacote["png_path"],
             nome_filial,
-            metas,
-            periodo_inicio_str,
+            pacote["metas"],
+            pacote["periodo_inicio_str"],
             ontem_str,
         )
         if imagem:
@@ -740,7 +756,16 @@ def processar_filial(
     config,
     dry_run=False,
     sem_whatsapp=False,
+    sem_metas=False,
+    somente_metas=False,
 ):
+    """Busca as vendas da filial e monta/envia o relatorio de vendas.
+
+    O relatorio de metas nao e enviado aqui: ele volta pronto em "metas" para
+    o chamador despachar no fim do lote. Com somente_metas=True o relatorio de
+    vendas e inteiramente pulado (arquivos, e-mail e WhatsApp) - e o modo que o
+    orquestrador usa na segunda passada, depois de todas as filiais.
+    """
     id_filial = filial["id_filial"]
     nome_filial = filial["nome"]
     colaboradores = filial["colaboradores"]
@@ -766,8 +791,12 @@ def processar_filial(
         id_func = colab["id_funcionario"]
         print(f"    - {nome}")
 
-        dados_ontem = cliente.listar_vendas(ontem_str, ontem_str, id_func)
-        registros_ontem = extrair_registros(dados_ontem)
+        # O relatorio de metas so olha o mes; em somente_metas a consulta de
+        # ontem seria uma chamada a mais no EVO sem ninguem para ler.
+        registros_ontem = []
+        if not somente_metas:
+            dados_ontem = cliente.listar_vendas(ontem_str, ontem_str, id_func)
+            registros_ontem = extrair_registros(dados_ontem)
 
         dados_mes = cliente.listar_vendas(periodo_inicio_str, periodo_fim_str, id_func)
         registros_mes = extrair_registros(dados_mes)
@@ -791,57 +820,32 @@ def processar_filial(
             preparar_registros_csv(registros_mes, nome, "Mes", nome_filial)
         )
 
-    totais = {"registros_ontem": todos_ontem, "registros_mes": todos_mes}
-    texto = montar_relatorio_texto(
-        nome_filial,
-        colaboradores_resultados,
-        totais,
-        ontem_str,
-        periodo_inicio_str,
-    )
-    print("\n" + texto + "\n")
-
     OUTPUT_DIR.mkdir(exist_ok=True)
     data_arquivo = agora.strftime("%Y-%m-%d")
     slug = slugify(nome_filial)
-    txt_path = OUTPUT_DIR / f"relatorio_vendas_{slug}_{data_arquivo}.txt"
-    csv_path = OUTPUT_DIR / f"relatorio_vendas_{slug}_{data_arquivo}.csv"
+    email_enviado = False
 
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(texto)
-    salvar_csv(todos_csv, csv_path)
-
-    print(f"  Relatorio salvo em:\n    {txt_path}\n    {csv_path}")
-
-    html = montar_email_html(
-        nome_filial,
-        colaboradores_resultados,
-        totais,
-        ontem_str,
-        periodo_inicio_str,
-        meta_mes=meta_mes,
-    )
-
-    assunto = f"Relatório de Vendas - {nome_filial} - {ontem_str}"
-    if dry_run:
-        print("  [dry-run] E-mail nao enviado.")
-        email_enviado = False
-    else:
-        email_enviado = enviar_email(
-            config,
-            assunto=assunto,
-            corpo_texto=texto,
-            anexos=[txt_path, csv_path],
-            corpo_html=html,
+    if not somente_metas:
+        totais = {"registros_ontem": todos_ontem, "registros_mes": todos_mes}
+        texto = montar_relatorio_texto(
+            nome_filial,
+            colaboradores_resultados,
+            totais,
+            ontem_str,
+            periodo_inicio_str,
         )
+        print("\n" + texto + "\n")
 
-    if not sem_whatsapp and (whatsapp_ativo(config) or dry_run):
-        print("\n  Notificando por WhatsApp...")
-        # O WhatsApp nao renderiza HTML, entao o relatorio vai desenhado
-        # como PNG a partir dos mesmos dados que alimentam o e-mail.
-        imagem = gerar_imagem_relatorio(
-            config,
-            OUTPUT_DIR / f"whatsapp_{slug}_{data_arquivo}.png",
+        txt_path = OUTPUT_DIR / f"relatorio_vendas_{slug}_{data_arquivo}.txt"
+        csv_path = OUTPUT_DIR / f"relatorio_vendas_{slug}_{data_arquivo}.csv"
+
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(texto)
+        salvar_csv(todos_csv, csv_path)
+
+        print(f"  Relatorio salvo em:\n    {txt_path}\n    {csv_path}")
+
+        html = montar_email_html(
             nome_filial,
             colaboradores_resultados,
             totais,
@@ -849,24 +853,46 @@ def processar_filial(
             periodo_inicio_str,
             meta_mes=meta_mes,
         )
-        if imagem:
-            print(f"  Imagem do relatorio: {imagem}")
-        notificar_whatsapp_filial(
-            config, nome_filial, ontem_str, imagem=imagem, dry_run=dry_run
+
+        assunto = f"Relatório de Vendas - {nome_filial} - {ontem_str}"
+        if dry_run:
+            print("  [dry-run] E-mail nao enviado.")
+        else:
+            email_enviado = enviar_email(
+                config,
+                assunto=assunto,
+                corpo_texto=texto,
+                anexos=[txt_path, csv_path],
+                corpo_html=html,
+            )
+
+        if not sem_whatsapp and (whatsapp_ativo(config) or dry_run):
+            print("\n  Notificando por WhatsApp...")
+            # O WhatsApp nao renderiza HTML, entao o relatorio vai desenhado
+            # como PNG a partir dos mesmos dados que alimentam o e-mail.
+            imagem = gerar_imagem_relatorio(
+                config,
+                OUTPUT_DIR / f"whatsapp_{slug}_{data_arquivo}.png",
+                nome_filial,
+                colaboradores_resultados,
+                totais,
+                ontem_str,
+                periodo_inicio_str,
+                meta_mes=meta_mes,
+            )
+            if imagem:
+                print(f"  Imagem do relatorio: {imagem}")
+            notificar_whatsapp_filial(
+                config, nome_filial, ontem_str, imagem=imagem, dry_run=dry_run
+            )
+
+    metas = None
+    if not sem_metas:
+        metas = preparar_relatorio_metas(
+            config, filial, colaboradores_resultados, periodos, slug, data_arquivo
         )
 
-    processar_metas_funcionarios(
-        config,
-        filial,
-        colaboradores_resultados,
-        periodos,
-        slug,
-        data_arquivo,
-        dry_run=dry_run,
-        sem_whatsapp=sem_whatsapp,
-    )
-
-    return {"nome": nome_filial, "email_enviado": email_enviado}
+    return {"nome": nome_filial, "email_enviado": email_enviado, "metas": metas}
 
 
 def montar_conteudo_sms_resumo(config, ontem_str):
@@ -911,12 +937,29 @@ def parse_args(argv=None):
         help="Nao notifica a filial por WhatsApp (o e-mail continua saindo).",
     )
     parser.add_argument(
+        "--sem-metas",
+        action="store_true",
+        help="Nao gera o relatorio de metas por consultor. Usado pelo "
+        "orquestrador na primeira passada, que so despacha os relatorios de "
+        "vendas.",
+    )
+    parser.add_argument(
+        "--somente-metas",
+        action="store_true",
+        help="Gera e envia apenas o relatorio de metas por consultor, sem o "
+        "relatorio de vendas. Usado pelo orquestrador na segunda passada, "
+        "depois de todas as filiais.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Gera os arquivos e a imagem e mostra a mensagem do WhatsApp, "
         "mas nao envia e-mail, SMS nem faz a chamada de API.",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.sem_metas and args.somente_metas:
+        parser.error("--sem-metas e --somente-metas se excluem.")
+    return args
 
 
 def configurar_saida_utf8():
@@ -944,6 +987,7 @@ def main(argv=None):
     print(f"2/2 - Processando {len(filiais)} filial(is)...")
     processadas = []
     emails_enviados = 0
+    metas_pendentes = []
     for filial in filiais:
         resultado = processar_filial(
             cliente,
@@ -954,15 +998,30 @@ def main(argv=None):
             config,
             dry_run=args.dry_run,
             sem_whatsapp=args.sem_whatsapp,
+            sem_metas=args.sem_metas,
+            somente_metas=args.somente_metas,
         )
         processadas.append(resultado["nome"])
         if resultado["email_enviado"]:
             emails_enviados += 1
+        if resultado["metas"]:
+            metas_pendentes.append(resultado["metas"])
 
     # No caminho feliz nao ha notificacao de fim de lote: cada filial ja
     # mandou a propria imagem por WhatsApp. Sobra o SMS, hoje desligado.
     if emails_enviados and not args.sem_resumo and not args.dry_run:
         notificar_sms_resumo(config, periodos["ontem_str"])
+
+    # Metas por ultimo, so depois de todo o despacho dos relatorios de vendas
+    # (e-mail, WhatsApp e SMS): quem recebe os dois le primeiro as filiais e
+    # depois o fechamento por consultor.
+    for pacote in metas_pendentes:
+        despachar_relatorio_metas(
+            config,
+            pacote,
+            dry_run=args.dry_run,
+            sem_whatsapp=args.sem_whatsapp,
+        )
 
 
 if __name__ == "__main__":

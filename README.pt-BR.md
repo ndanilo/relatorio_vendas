@@ -12,7 +12,7 @@ Automação em Python que gera o relatório de vendas por colaborador no sistema
 4. Gera um `.txt` e um `.csv` por filial em `relatorios/`.
 5. Envia um e-mail HTML responsivo por filial (gráficos de contribuição e meta), se `email.ativo` estiver `true`.
 6. Notifica cada filial por WhatsApp (API local), anexando o mesmo relatório renderizado em PNG sem o gráfico circular, se `whatsapp.ativo` estiver `true`. A mensagem é só o título — os números estão na imagem.
-7. Nas filiais com `funcionario_report_ativo`, envia um segundo relatório — **metas por consultor** — para destinatários próprios: meta individual, realizado no mês, projeção do mês, `%` da meta, quanto falta e falta por dia útil, cada linha sinalizada com `▼ ABAIXO DA META` ou `▲ META ATINGIDA`.
+7. **Depois que todos os relatórios de filial saíram**, envia um segundo relatório — **metas por consultor** — nas filiais com `funcionario_report_ativo`, para destinatários próprios: meta individual, realizado no mês, projeção do mês, `%` da meta, quanto falta e falta por dia útil, cada linha sinalizada com `▼ ABAIXO DA META` ou `▲ META ATINGIDA`. Ele é sempre o último envio, então quem recebe os dois relatórios vê as filiais primeiro.
 8. Se alguma filial falhar, manda um aviso por WhatsApp ao final do lote. Dando tudo certo, não há mensagem de fechamento. O SMS (Brevo) foi substituído por esse canal e está desligado.
 
 Textos e barras usam **HTML puro**; o donut de contribuição é **SVG só com formas** (sem texto, para não quebrar em clientes de e-mail). O e-mail não leva anexo de imagem — o PNG existe só para o WhatsApp, que não renderiza HTML.
@@ -86,6 +86,13 @@ Ensaio geral, sem disparar nada: gera arquivos e imagens e mostra as mensagens d
 ```powershell
 py rodar_relatorios_filiais.py --dry-run
 py gerar_relatorio_vendas.py --id-filial 1 --dry-run
+```
+
+Só o relatório de metas, ou só o de vendas (o orquestrador usa os dois para deixar as metas por último — veja [docs/pt/fluxo.md](docs/pt/fluxo.md)):
+
+```powershell
+py gerar_relatorio_vendas.py --id-filial 1 --somente-metas
+py gerar_relatorio_vendas.py --id-filial 1 --sem-metas
 ```
 
 ## Validar os gráficos do e-mail
