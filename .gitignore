@@ -54,6 +54,10 @@ memory/
 # Real credentials (EVO + SMTP + Brevo). Use evo_config.example.json as template.
 evo_config.json
 
+# Reference Data for new feature
+modelo-calculo-consultores.csv
+modelo-calculo-consultores.xlsx
+
 # Browser network captures - contain auth tokens
 *.har
 
