@@ -58,9 +58,11 @@ def formatar_dias(valor):
 def status(percentual):
     """Flag do consultor a partir do % da meta projetada.
 
-    Abaixo de 100% o consultor nao chega na meta no ritmo atual, e isso
-    aparece sinalizado - marcador e rotulo em caixa alta, nao so a cor, para
-    sobreviver ao PNG em escala de cinza e ao .txt.
+    O rotulo e sempre "PROJEÇÃO DA META", nunca um veredito: dizer "META
+    ATINGIDA" a quem vendeu 85 mil de uma meta de 200 mil confunde o
+    consultor, porque o que chegou na meta foi a projecao, nao o dinheiro em
+    caixa. Quem sinaliza a direcao e o marcador (▼/▲) junto da cor - o
+    marcador e texto, entao sobrevive ao PNG em escala de cinza e ao .txt.
     """
     if percentual is None:
         return {
@@ -72,13 +74,13 @@ def status(percentual):
     if percentual >= 100:
         return {
             "chave": "atingida",
-            "rotulo": "META ATINGIDA",
+            "rotulo": "PROJEÇÃO DA META",
             "marcador": "▲",
             "cor": COR_POSITIVO,
         }
     return {
         "chave": "abaixo",
-        "rotulo": "ABAIXO DA META",
+        "rotulo": "PROJEÇÃO DA META",
         "marcador": "▼",
         "cor": COR_ALERTA,
     }

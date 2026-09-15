@@ -581,7 +581,7 @@ def _cartao_meta(tela, y, largura, linha):
 
     altura = 16 + 22 + 24 + (18 if tem_barra else 0) + 2 * ALTURA_LINHA_METRICA + 8
     # Faixa lateral na cor do status, nao na cor do colaborador: aqui nao ha
-    # donut para casar a cor, e faixa verde em cartao "ABAIXO DA META" mentiria.
+    # donut para casar a cor, e faixa verde em cartao marcado com "▼" mentiria.
     tela.cartao(MARGEM, y, largura, altura, cor_faixa=status["cor"])
 
     tela.texto(interno, y + 16, linha["nome"], 15, COR_TINTA, negrito=True)
@@ -689,8 +689,7 @@ def _desenhar_metas(
         coluna,
         "PROJEÇÃO DO MÊS",
         formatar_moeda_opcional(total["projecao"]),
-        f"{formatar_percentual(total['percentual'])} da meta · "
-        f"{status['marcador']} {status['rotulo']}",
+        f"{status['marcador']} {formatar_percentual(total['percentual'])} da meta",
         status["cor"],
     )
     y += 16

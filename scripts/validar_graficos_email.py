@@ -104,9 +104,9 @@ def cenarios_metas():
 
     As metas de "metas-padrao" sao desproporcionais de proposito: quem tem a
     meta pequena vai muito bem e quem tem a grande vai mal, entao a media dos
-    percentuais (120.1%, "META ATINGIDA") contradiz o % do total (90.2%,
-    "ABAIXO DA META"). Trocar a formula do total pela media dos percentuais
-    erra o numero, a barra e a flag - as tres coisas quebram a checagem.
+    percentuais (120.1%, marcador "▲") contradiz o % do total (90.2%, marcador
+    "▼"). Trocar a formula do total pela media dos percentuais erra o numero,
+    a barra e o marcador - as tres coisas quebram a checagem.
 
     "metas-atingida" tem um consultor que passou da meta: falta e falta por
     dia tem de sair zeradas, nunca negativas. Ali a soma das faltas limitadas
@@ -425,7 +425,10 @@ def checar_sem_svg(pagina, esperado, falhas):
             falhas.append("Sem SVG, o progresso da meta nao aparece em texto")
 
 
-ROTULO_STATUS = {"abaixo": "ABAIXO DA META", "atingida": "META ATINGIDA"}
+# O rotulo e o mesmo nos dois estados de proposito (ver metas_consultores.status);
+# quem distingue abaixo de atingida e o marcador, entao ele tambem e checado.
+ROTULO_STATUS = "PROJEÇÃO DA META"
+MARCADOR_STATUS = {"abaixo": "▼", "atingida": "▲"}
 
 
 def _checar_cartao_meta(cartao, alvo, falhas, rotulo):
@@ -459,8 +462,14 @@ def _checar_cartao_meta(cartao, alvo, falhas, rotulo):
         )
 
     texto = cartao.inner_text().replace("\u00a0", " ")
-    if ROTULO_STATUS[alvo["status"]] not in texto:
-        falhas.append(f"{rotulo}: selo '{ROTULO_STATUS[alvo['status']]}' ausente")
+    selo = f"{MARCADOR_STATUS[alvo['status']]} {ROTULO_STATUS}"
+    if selo not in texto:
+        falhas.append(f"{rotulo}: selo '{selo}' ausente")
+    marcador_errado = MARCADOR_STATUS[
+        "atingida" if alvo["status"] == "abaixo" else "abaixo"
+    ]
+    if marcador_errado in texto:
+        falhas.append(f"{rotulo}: marcador '{marcador_errado}' nao deveria aparecer")
 
     for campo in ("meta", "realizado", "projecao", "falta", "por_dia"):
         valor = formatar_moeda(alvo[campo])

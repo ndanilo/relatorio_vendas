@@ -119,10 +119,12 @@ The `%` is not just a number — it becomes a flag:
 
 | Situation | Badge | Color |
 |-----------|-------|-------|
-| `%` **< 100** — will not reach the goal at the current pace | `▼ ABAIXO DA META` | Amber (the same one the sales report uses for an unmet goal) |
-| `%` **≥ 100** — reaches or beats the goal | `▲ META ATINGIDA` | Green |
+| `%` **< 100** — will not reach the goal at the current pace | `▼ PROJEÇÃO DA META` | Amber (the same one the sales report uses for an unmet goal) |
+| `%` **≥ 100** — reaches or beats the goal | `▲ PROJEÇÃO DA META` | Green |
 
-The marker and the uppercase label travel with the color, so the flag survives the PNG in grayscale, the `.txt`, and color-vision deficiency. The card's side stripe and the progress bar also use the status color — there is no donut here to match the employee's identity color, and a green stripe on an `ABAIXO DA META` card would contradict the badge.
+The label is identical in both cases, deliberately: a badge reading `META ATINGIDA` for someone who sold R$ 85,000 against a R$ 200,000 goal confuses the consultant, because what reached the goal was the **projection**, not the money in the till. The direction is signalled by the **marker** (`▼` / `▲`) together with the color.
+
+The marker is text, so the flag survives the PNG in grayscale, the `.txt`, and color-vision deficiency. The card's side stripe and the progress bar also use the status color — there is no donut here to match the employee's identity color, and a green stripe on a `▼` card would contradict the marker.
 
 Watch out for one difference that looks like an inconsistency but is not: `%` compares the **projection** against the goal, while `Falta` compares the **realized** amount against the goal. A consultant can be flagged positive (on pace) and still owe a large `Falta` for the month.
 
@@ -135,7 +137,7 @@ The report has two progress bars with identical shapes and different meanings, s
 | Total progress, at the top | `Realizado R$ 175.463,25 de R$ 570.000,00` · `30.8%` | Realized over the sum of the goals |
 | One per consultant card | `Projeção R$ 97.508,24 de R$ 200.000,00` · `48.8%` | Projection over the individual goal |
 
-The percentage next to a card's bar is the one that decides the badge — which is why `48.8%` sits beside `▼ ABAIXO DA META`. That is also why `Projeção` and `% da meta` are **not** repeated in the number grid below: showing the same value twice would suggest they are different measurements. The grid keeps `Meta`, `Realizado`, `Falta`, and `Por dia útil`.
+The percentage next to a card's bar is the one that decides the marker — which is why `48.8%` sits beside `▼`. That is also why `Projeção` and `% da meta` are **not** repeated in the number grid below: showing the same value twice would suggest they are different measurements. The grid keeps `Meta`, `Realizado`, `Falta`, and `Por dia útil`.
 
 ### Structure
 

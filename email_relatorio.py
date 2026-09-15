@@ -548,9 +548,9 @@ def _grade_metricas(linha):
 
 def _cartao_meta(linha, bloco):
     # A faixa lateral usa a cor do status, nao a cor de identidade do
-    # colaborador: um cartao "ABAIXO DA META" com faixa verde diria o
-    # contrario do selo. Aqui nao ha donut para casar a cor, entao a
-    # identidade nao perde nada.
+    # colaborador: faixa verde num cartao marcado com "▼" diria o contrario
+    # do marcador. Aqui nao ha donut para casar a cor, entao a identidade
+    # nao perde nada.
     percentual = linha["percentual"]
     cor_status = linha["status"]["cor"]
 
@@ -632,11 +632,12 @@ def montar_email_metas_html(nome_filial, metas, periodo_inicio_str, ontem_str):
         )
     ]
 
-    # Sem entidade HTML aqui: o detalhe do cartao passa por escapar(), entao
-    # "&middot;" apareceria cru no e-mail.
+    # So o marcador e o percentual: o rotulo do cartao ja diz "PROJEÇÃO DO
+    # MÊS", e o selo completo aparece no cartao do total, logo abaixo. Escrito
+    # inteiro aqui, o texto estouraria a largura do cartao no PNG.
     detalhe_projecao = (
-        f"{formatar_percentual(total['percentual'])} da meta · "
-        f"{total['status']['marcador']} {total['status']['rotulo']}"
+        f"{total['status']['marcador']} "
+        f"{formatar_percentual(total['percentual'])} da meta"
     )
     partes.append(
         '<tr><td style="padding:0 0 16px 0;">'

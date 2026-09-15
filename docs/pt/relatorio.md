@@ -119,10 +119,12 @@ O `%` não é só um número — ele vira uma flag:
 
 | Situação | Selo | Cor |
 |----------|------|-----|
-| `%` **< 100** — não chega na meta no ritmo atual | `▼ ABAIXO DA META` | Âmbar (a mesma da meta não batida no relatório de vendas) |
-| `%` **≥ 100** — chega ou passa da meta | `▲ META ATINGIDA` | Verde |
+| `%` **< 100** — não chega na meta no ritmo atual | `▼ PROJEÇÃO DA META` | Âmbar (a mesma da meta não batida no relatório de vendas) |
+| `%` **≥ 100** — chega ou passa da meta | `▲ PROJEÇÃO DA META` | Verde |
 
-O marcador e o rótulo em caixa alta acompanham a cor, então a flag sobrevive ao PNG em escala de cinza, ao `.txt` e a quem não distingue as cores. A faixa lateral do cartão e a barra de progresso também usam a cor do status — aqui não há gráfico circular para casar com a cor de identidade do colaborador, e faixa verde em cartão `ABAIXO DA META` diria o contrário do selo.
+O rótulo é o mesmo nos dois casos, e isso é de propósito: um selo dizendo `META ATINGIDA` para quem vendeu R$ 85 mil de uma meta de R$ 200 mil confunde o consultor, porque o que chegou na meta foi a **projeção**, não o dinheiro em caixa. Quem sinaliza a direção é o **marcador** (`▼` / `▲`) junto da cor.
+
+O marcador é texto, então a flag sobrevive ao PNG em escala de cinza, ao `.txt` e a quem não distingue as cores. A faixa lateral do cartão e a barra de progresso também usam a cor do status — aqui não há gráfico circular para casar com a cor de identidade do colaborador, e faixa verde em cartão com `▼` diria o contrário do marcador.
 
 Atenção a uma diferença que parece inconsistência e não é: `%` compara a **projeção** com a meta, enquanto `Falta` compara o **realizado** com a meta. Um consultor pode estar sinalizado como positivo (no ritmo) e ainda ter uma `Falta` alta no mês.
 
@@ -135,7 +137,7 @@ O relatório tem duas barras de progresso com formas idênticas e significados d
 | Progresso do total, no topo | `Realizado R$ 175.463,25 de R$ 570.000,00` · `30.8%` | Realizado sobre a soma das metas |
 | Uma por cartão de consultor | `Projeção R$ 97.508,24 de R$ 200.000,00` · `48.8%` | Projeção sobre a meta individual |
 
-O percentual ao lado da barra do cartão é o mesmo que decide o selo — daí `48.8%` vir junto de `▼ ABAIXO DA META`. Por isso `Projeção` e `% da meta` **não** se repetem na grade de números abaixo: mostrar o mesmo valor duas vezes daria a impressão de serem medidas distintas. A grade fica com `Meta`, `Realizado`, `Falta` e `Por dia útil`.
+O percentual ao lado da barra do cartão é o mesmo que decide o marcador — daí `48.8%` vir junto de `▼`. Por isso `Projeção` e `% da meta` **não** se repetem na grade de números abaixo: mostrar o mesmo valor duas vezes daria a impressão de serem medidas distintas. A grade fica com `Meta`, `Realizado`, `Falta` e `Por dia útil`.
 
 ### Estrutura
 
